@@ -1,0 +1,13 @@
+{
+  "name": "@dsh-overdrive/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "scripts": { "build": "tsc" },
+  "dependencies": { "ws": "^8.18.0" },
+  "devDependencies": { "@types/ws": "^8.5.12" }
+}
