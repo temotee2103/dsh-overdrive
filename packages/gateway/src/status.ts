@@ -14,10 +14,9 @@ export interface StatusServerOptions {
  * 健康控制台：GET / 与 /console 返回静态页，GET /api/status 返回 DSH 健康 + 适配器状态。
  *
  * console.html 读取路径说明（与 dist 产物核对过）：
- * - src 运行（vitest）：import.meta.url = packages/gateway/src/status.ts → ../../web/console.html = packages/web/console.html
- * - dist 运行（node packages/gateway/dist/index.js）：import.meta.url = packages/gateway/dist/status.js → ../../web/console.html = packages/web/console.html
- * 两种形态下 `../../web/console.html` 均解析到 packages/web/console.html（plan 中的
- * ../../../web/console.html 会多上一级到仓库根目录，不正确，已修正）。
+ * - src 运行（vitest）：import.meta.url = packages/gateway/src/status.ts → ../web/console.html = packages/gateway/web/console.html
+ * - dist 运行（node packages/gateway/dist/index.js）：import.meta.url = packages/gateway/dist/status.js → ../web/console.html = packages/gateway/web/console.html
+ * - npm 安装（@dsh-overdrive/gateway）：console.html 随包分发，两种形态均可命中。
  */
 export function createStatusServer(opts: StatusServerOptions): {
   server: Server;
@@ -43,7 +42,7 @@ export function createStatusServer(opts: StatusServerOptions): {
     }
     if (url.pathname === '/' || url.pathname === '/console') {
       const html = await readFile(
-        fileURLToPath(new URL('../../web/console.html', import.meta.url)),
+        fileURLToPath(new URL('../web/console.html', import.meta.url)),
         'utf8',
       ).catch(() => '<h1>console.html not found</h1>');
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
