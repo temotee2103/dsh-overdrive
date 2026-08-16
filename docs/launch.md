@@ -4,7 +4,8 @@
 
 - ✅ GitHub 仓库公开（temotee2103/dsh-overdrive，57+ commit，CI 全绿）
 - ✅ `dsh-plugin` topic + 10 个相关 topic
-- ✅ npm 三包发布（sdk / gateway-core / gateway @ 0.1.1，英文描述）
+- ✅ npm 三包发布：`@dsh-overdrive/sdk@0.1.1` / `gateway-core@0.1.1` / `gateway@0.1.3`（英文描述，含 setup 向导 bin）
+- ✅ hermes 风格设置向导：`npx dsh-overdrive-setup`（交互式 + 凭据实时验证）
 - ✅ DSH 官方 Discussion 发帖：https://github.com/deepseek-ai/deepseek-harness/discussions/2546（"Show Your Plugins!"）
 - ✅ awesome-dsh-plugin PR #1191（4838⭐）：https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1191
 - ✅ awesome-deepseek-harness PR #321（589⭐）：https://github.com/0xsline/awesome-deepseek-harness/pull/321
