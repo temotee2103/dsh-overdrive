@@ -64,3 +64,19 @@ function makeMockHandlers(emit: (ev: ServerEvent) => void): ProtocolHandlers {
     },
   };
 }
+
+// CLI 入口（供 test/e2e.mjs 直接启动）：node dist/index.js --port <port> --token <token>
+// 被 vitest 等 import 时 process.argv[1] 不是本文件，不会进入此分支。
+function parseArg(name: string): string | undefined {
+  const idx = process.argv.indexOf(name);
+  return idx >= 0 ? process.argv[idx + 1] : undefined;
+}
+
+if (process.argv[1]?.endsWith('index.js') || process.argv[1]?.endsWith('index.ts')) {
+  const port = Number(parseArg('--port') ?? 3191);
+  const token = parseArg('--token') ?? 'dev-token';
+  const server = createMockDsh({ token });
+  void server.listen(port).then((p) => {
+    console.log(`[mock-dsh] listening on http://127.0.0.1:${p}`);
+  });
+}

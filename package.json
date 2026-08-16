@@ -5,7 +5,7 @@
   "type": "module",
   "workspaces": ["packages/*"],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @dsh-overdrive/sdk && npm run build --workspaces --if-present",
     "test": "vitest run",
     "e2e": "node test/e2e.mjs"
   },
