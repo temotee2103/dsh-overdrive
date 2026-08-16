@@ -58,6 +58,8 @@ export class ProtocolServer {
 
   close(): Promise<void> {
     return new Promise((resolve) => {
+      // 先强制断开所有 WS 客户端，否则 wss.close() 会一直等待客户端自行关闭。
+      for (const client of this.wss.clients) client.terminate();
       this.wss.close(() => this.http.close(() => resolve()));
     });
   }

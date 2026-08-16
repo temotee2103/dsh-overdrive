@@ -1,0 +1,60 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { ProtocolServer, type ProtocolHandlers } from '../src/server.js';
+import { GatewayClient } from '../src/client.js';
+import type { ServerEvent } from '../src/protocol.js';
+
+const TOKEN = 'test-token';
+
+describe('GatewayClient', () => {
+  let server: ProtocolServer | undefined;
+  let port = 0;
+
+  async function start(): Promise<GatewayClient> {
+    const emit = (ev: ServerEvent): void => server!.emit(ev);
+    const handlers: ProtocolHandlers = {
+      async upsertSession(req) { return { sessionId: `${req.platform}:${req.channel}:${req.user}` }; },
+      async sendMessage(sessionId) {
+        emit({ type: 'agent.status', sessionId, ts: Date.now(), status: 'busy' });
+        emit({ type: 'message.complete', sessionId, ts: Date.now(), text: 'pong' });
+        emit({ type: 'agent.status', sessionId, ts: Date.now(), status: 'idle' });
+        return { runId: 'run-1' };
+      },
+      async resolveApproval(_reqId, decision) { return { ok: decision === 'approve' }; },
+      async createTask() { return { taskId: 'task-1' }; },
+    };
+    server = new ProtocolServer({ token: TOKEN, handlers });
+    port = await server.listen(0);
+    return new GatewayClient(`http://127.0.0.1:${port}`, TOKEN);
+  }
+
+  afterEach(async () => { await server?.close(); server = undefined; });
+
+  it('health / upsert / send / resolve 全链路', async () => {
+    const client = await start();
+    expect(await client.health()).toMatchObject({ status: 'ok' });
+
+    const s = await client.upsertSession({ platform: 'cli', channel: 'cli', user: 'local' });
+    expect(s.sessionId).toBe('cli:cli:local');
+
+    const run = await client.sendMessage(s.sessionId, { text: 'hi' });
+    expect(run.runId).toBe('run-1');
+
+    const ok = await client.resolveApproval('req-1', 'reject');
+    expect(ok.ok).toBe(false);
+  });
+
+  it('WS 订阅到服务端事件', async () => {
+    const client = await start();
+    const events: ServerEvent[] = [];
+    await client.connect((ev) => events.push(ev));
+    await client.sendMessage('cli:cli:local', { text: 'hi' });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(events.some((e) => e.type === 'message.complete' && e.text === 'pong')).toBe(true);
+  });
+
+  it('错误 token 抛错', async () => {
+    await start(); // 自包含：不依赖前序测试留下的服务器/端口
+    const bad = new GatewayClient(`http://127.0.0.1:${port}`, 'wrong');
+    await expect(bad.health()).rejects.toThrow(/unauthorized/);
+  });
+});
