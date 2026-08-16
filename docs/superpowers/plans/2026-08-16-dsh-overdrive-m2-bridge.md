@@ -1134,6 +1134,22 @@ Expected: 全量 PASS；git log 显示本计划全部 commit。
 
 ---
 
+## 真机验证实录（2026-08-16，dsh 0.1.0-rc.6）
+
+实际执行时发现并落实了 4 个计划假设与运行时不符的点（均已在本计划中生效）：
+
+1. **Windows 插件路径必须是 `file://` URL**：`cordis.smoke.yml` 的 `name` 写裸绝对路径（`C:/...`）会报 `ERR_UNSUPPORTED_ESM_URL_SCHEME`；须写成 `file:///C:/Users/.../dist/index.js`（路径中的空格用 `%20`）。
+2. **`--patch` 是父级选项且 `web` 子命令拒绝父级选项**：`dsh web --patch x.yml` 报 `unknown option '--patch'`，`dsh --patch x.yml web` 报 `web takes none of parent --patch`；**正确用法是 `dsh --profile web --patch ./cordis.smoke.yml --port <port>`**（`--profile` 形式允许父级选项，`--port` 透传给 web app）。
+3. **DSH rc.6 需要较新的 Node（≥22.15，`node:zlib` 的 zstd 导出）**：Node 22.14.0 启动报 `The requested module 'node:zlib' does not provide an export named 'createZstdDecompress'`；用 Node 26（本机 `D:\Program Files\nodejs`）正常。冒烟命令需让系统 Node 优先于便携 Node 进入 PATH。
+4. **端口冲突**：本机 3080 已有全局 DSH 实例占用，冒烟实例用 `--port 3081` 避开（插件协议端口 3192 独立，不受影响）。
+
+**冒烟结果（Node 26 + dsh 0.1.0-rc.6 + `--profile web --patch`）：**
+- `[dsh-overdrive-gateway-core] loaded, protocol server on 127.0.0.1:3192` —— 插件加载成功
+- `GET /v1/health` → `{"status":"ok","version":"0.1.0"}` —— 协议服务端可达
+- 注入 `你好` → 回传 2 个 `agent.status`（busy/idle）—— **会话创建 + followup + turn 事件回流全通**（无 LLM key 时无 assistant 文本，属预期；配好模型即全链路）
+
+---
+
 ## Self-Review 结果
 
 - **Spec/报告覆盖：** interface-report §7 的 7 组桥接项——①会话 upsert（bridge.handlers.upsertSession + runtime.ensureAgent）②消息注入（sendMessage → followup）③输出订阅（onSessionEvent + derive）④轨迹派生（derive.tool/call → trajectory.step）⑤审批（answerApproval + resolveApproval）⑥子任务（spawnSubagent；cron 明确延后 M4）⑦插件注册（cordis.smoke.yml + inject/apply 形态）。设计文档 §5 组件、§6 协议端点全部有任务覆盖。
