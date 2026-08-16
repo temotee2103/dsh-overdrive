@@ -28,6 +28,13 @@ DSH's append-only session log is the one thing they can't copy. `dsh-overdrive` 
 
 ## What it looks like
 
+<p align="center">
+  <img src="docs/demo-animation.svg" alt="dsh-overdrive animated demo" width="680">
+</p>
+
+<details>
+<summary>As plain text / 纯文本版</summary>
+
 ```
 You:  帮我看看这个项目有多少个包
 Agent:
@@ -50,6 +57,8 @@ Agent:
        ⚠️ Approval required: run dangerous operation (valid 120s)
        [✅ Approve] [🚫 Reject]   ← one tap, the agent continues or stops
 ```
+
+</details>
 
 <details>
 <summary>🎬 Full demo script → docs/demo.md</summary>

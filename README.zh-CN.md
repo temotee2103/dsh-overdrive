@@ -28,6 +28,13 @@ DSH 的 append-only session log 是它们抄不走的。`dsh-overdrive` 把这�
 
 ## 效果长这样
 
+<p align="center">
+  <img src="docs/demo-animation.svg" alt="dsh-overdrive 动画演示" width="680">
+</p>
+
+<details>
+<summary>纯文本版</summary>
+
 ```
 你:  帮我看看这个项目有多少个包
 Agent:
@@ -50,6 +57,8 @@ Agent:
        ⚠️ 需要批准：执行危险操作（120s 内有效）
        [✅ 同意] [🚫 拒绝]   ← 点一下，agent 继续或停止
 ```
+
+</details>
 
 <details>
 <summary>🎬 完整演示剧本 → docs/demo.md（中英双语）</summary>

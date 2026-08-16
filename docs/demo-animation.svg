@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 520" width="680" height="520" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <style>
+    @keyframes msg-in { 0% { opacity: 0; transform: translateY(10px); } 8%, 100% { opacity: 1; transform: translateY(0); } }
+    @keyframes dot { 0%, 60%, 100% { transform: translateY(0); opacity: .35; } 30% { transform: translateY(-4px); opacity: 1; } }
+    @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    .m { opacity: 0; animation: msg-in 14s linear infinite; }
+    .d1 { animation-delay: 1.6s; } .d2 { animation-delay: 1.75s; } .d3 { animation-delay: 1.9s; }
+    .dot { animation: dot 1.2s ease-in-out infinite; }
+    .typing { opacity: 0; animation: msg-in 14s linear infinite; animation-delay: 1.4s; }
+    .traj-step { opacity: 0; }
+    .traj { animation: msg-in 14s linear infinite; animation-delay: 2.4s; }
+    .traj .t1 { animation: msg-in 14s linear infinite; animation-delay: 2.8s; }
+    .traj .t2 { animation: msg-in 14s linear infinite; animation-delay: 3.2s; }
+    .traj .t3 { animation: msg-in 14s linear infinite; animation-delay: 3.6s; }
+    .reply { animation: msg-in 14s linear infinite; animation-delay: 4.6s; }
+    .typing2 { animation: msg-in 14s linear infinite; animation-delay: 4.0s; }
+    .approval { animation: msg-in 14s linear infinite; animation-delay: 6.0s; }
+    .btn-a { animation: msg-in 14s linear infinite; animation-delay: 6.6s; }
+    .btn-b { animation: msg-in 14s linear infinite; animation-delay: 6.8s; }
+    .cursor { animation: blink 1s steps(1) infinite; }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#12151c"/><stop offset="1" stop-color="#0b0d12"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f7cff"/><stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 窗口 -->
+  <rect x="20" y="20" width="640" height="480" rx="18" fill="url(#bg)" stroke="#232a38" stroke-width="1.5"/>
+  <rect x="20" y="20" width="640" height="46" rx="18" fill="#1a1f2b"/>
+  <rect x="20" y="48" width="640" height="18" fill="#1a1f2b"/>
+  <circle cx="48" cy="43" r="6" fill="#ff5f57"/><circle cx="68" cy="43" r="6" fill="#febc2e"/><circle cx="88" cy="43" r="6" fill="#28c840"/>
+  <text x="340" y="48" fill="#8b94a7" font-size="13" text-anchor="middle" font-weight="600">dsh-overdrive · Telegram</text>
+
+  <!-- 用户消息 -->
+  <g class="m d1">
+    <rect x="300" y="84" width="330" height="40" rx="14" fill="url(#accent)"/>
+    <text x="316" y="102" fill="#fff" font-size="14">帮我看看这个项目有多少个包</text>
+    <text x="316" y="118" fill="#cdd6ff" font-size="10">You · 10:02</text>
+  </g>
+
+  <!-- 打字中 -->
+  <g class="typing">
+    <rect x="40" y="140" width="64" height="34" rx="14" fill="#232a38"/>
+    <circle class="dot" cx="58" cy="157" r="4" fill="#8b94a7"/><circle class="dot d2" cx="74" cy="157" r="4" fill="#8b94a7"/><circle class="dot d3" cx="90" cy="157" r="4" fill="#8b94a7"/>
+  </g>
+
+  <!-- 轨迹卡片 -->
+  <g class="traj">
+    <rect x="40" y="192" width="330" height="132" rx="14" fill="#232a38" stroke="#2e3748" stroke-width="1"/>
+    <text x="58" y="214" fill="#ffd166" font-size="12" font-weight="700">📋 轨迹（2 步）</text>
+    <g class="t1"><rect x="58" y="226" width="294" height="26" rx="8" fill="#1c2230"/><text x="70" y="243" fill="#e6e6e6" font-size="12">🧠 分析消息</text></g>
+    <g class="t2"><rect x="58" y="258" width="294" height="26" rx="8" fill="#1c2230"/><text x="70" y="275" fill="#e6e6e6" font-size="12">🛠️ mock.tool: echo</text></g>
+    <g class="t3"><rect x="58" y="290" width="294" height="26" rx="8" fill="#14271c"/><text x="70" y="307" fill="#4ade80" font-size="12">✅ Mock agent received: 帮我看看这个项目有多少个包</text></g>
+  </g>
+
+  <!-- 回复 -->
+  <g class="reply">
+    <rect x="40" y="340" width="520" height="36" rx="14" fill="#232a38"/>
+    <text x="58" y="362" fill="#e6e6e6" font-size="14">共 4 个包：sdk · gateway · gateway-core · mock-dsh</text>
+  </g>
+
+  <!-- 审批 -->
+  <g class="approval">
+    <rect x="40" y="396" width="560" height="44" rx="14" fill="#3a1d1d" stroke="#6b2e2e" stroke-width="1"/>
+    <text x="58" y="424" fill="#fca5a5" font-size="13">⚠️ 需要批准：执行危险操作（120s 内有效）</text>
+  </g>
+  <g class="btn-a">
+    <rect x="340" y="452" width="120" height="32" rx="16" fill="#1f8b4c"/>
+    <text x="400" y="473" fill="#fff" font-size="13" text-anchor="middle" font-weight="600">✅ 同意</text>
+  </g>
+  <g class="btn-b">
+    <rect x="474" y="452" width="120" height="32" rx="16" fill="#2a3040"/>
+    <text x="534" y="473" fill="#fff" font-size="13" text-anchor="middle" font-weight="600">🚫 拒绝</text>
+  </g>
+
+  <!-- 底部状态条 -->
+  <rect x="40" y="462" width="280" height="22" rx="11" fill="none"/>
+  <text x="420" y="24" fill="#4ade80" font-size="11">● live</text>
+</svg>
