@@ -96,8 +96,9 @@ docker compose -f deploy/docker-compose.yml up -d --build
 **已有 DSH？一行装完：**
 
 ```bash
+npx dsh-overdrive-setup        # 引导向导：API key + 平台凭据（实时验证）
 dsh plugin --profile web add @dsh-overdrive/gateway-core   # 装插件
-npx @dsh-overdrive/gateway                                 # 起 gateway
+npx dsh-overdrive-gateway                                   # 起 gateway
 ```
 
 给 bot 发第一条消息后，输入 `/help` 查看全部命令。完整方案见 [docs/quickstart.md](docs/quickstart.md)

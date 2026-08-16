@@ -96,8 +96,9 @@ docker compose -f deploy/docker-compose.yml up -d --build
 **Already running DSH? One line:**
 
 ```bash
+npx dsh-overdrive-setup        # guided setup: API key + platform tokens (verified live)
 dsh plugin --profile web add @dsh-overdrive/gateway-core   # plugin
-npx @dsh-overdrive/gateway                                 # gateway
+npx dsh-overdrive-gateway                                   # gateway
 ```
 
 First message to your bot? Run `/help` inside the chat. Full options: [docs/quickstart.md](docs/quickstart.md)

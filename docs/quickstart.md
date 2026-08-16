@@ -22,11 +22,14 @@ Then message your bot → run `/help`. / 然后给 bot 发消息，输入 `/help
 Already running DSH? Just add the plugin and the gateway / 已有 DSH？装插件 + 起 gateway 即可：
 
 ```bash
+# 0. (可选) 引导向导：交互式填 API key + 平台凭据，每个凭据实时联网验证
+npx dsh-overdrive-setup
+
 # 1. 安装插件（DSH 官方插件安装方式）
 dsh plugin --profile web add @dsh-overdrive/gateway-core
 
 # 2. 起 gateway（指向你的 DSH）
-npx @dsh-overdrive/gateway
+npx dsh-overdrive-gateway
 # 或全局安装后直接运行
 npm i -g @dsh-overdrive/gateway
 GATEWAY_ADAPTERS=telegram TELEGRAM_BOT_TOKEN=<token> dsh-overdrive-gateway

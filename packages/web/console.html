@@ -2,37 +2,146 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8" />
-<title>dsh-overdrive 控制台</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>dsh-overdrive — Setup</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; background: #0f1115; color: #e6e6e6; }
-  h1 { font-size: 20px; }
-  .card { background: #1a1d24; border-radius: 10px; padding: 16px; margin: 12px 0; }
-  .ok { color: #4ade80; } .bad { color: #f87171; } .dim { color: #9ca3af; }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; background: #0f1115; color: #e6e6e6; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #9ca3af; font-size: 13px; margin-bottom: 20px; }
+  .card { background: #1a1d24; border: 1px solid #232a38; border-radius: 12px; padding: 16px; margin: 12px 0; }
+  .ok { color: #4ade80; } .bad { color: #f87171; } .dim { color: #9ca3af; } .accent { color: #7c9cff; }
+  /* progress */
+  .bar { height: 8px; border-radius: 4px; background: #232a38; overflow: hidden; margin: 8px 0 4px; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, #4f7cff, #4ade80); border-radius: 4px; transition: width .6s ease; }
+  .steps { counter-reset: step; padding: 0; margin: 12px 0 0; list-style: none; }
+  .steps li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #1f2632; }
+  .steps li:last-child { border-bottom: none; }
+  .num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: #232a38; color: #9ca3af; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; margin-top: 2px; }
+  .steps li.done .num { background: #1f8b4c; color: #fff; }
+  .steps li .body { flex: 1; }
+  .steps li .title { font-weight: 600; font-size: 14px; }
+  .steps li.done .title { color: #4ade80; }
+  .steps li .hint { color: #9ca3af; font-size: 12.5px; margin-top: 3px; line-height: 1.5; }
+  .steps li .hint code { background: #232a38; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  a { color: #7c9cff; }
+  .adapters span { margin-right: 10px; }
 </style>
 </head>
 <body>
-  <h1>dsh-overdrive 控制台</h1>
-  <div class="card"><strong>DSH</strong>：<span id="dsh">加载中…</span></div>
-  <div class="card"><strong>适配器</strong><ul id="adapters"></ul></div>
+  <h1>⚡ dsh-overdrive — Setup / 设置向导</h1>
+  <div class="sub">The OpenClaw of DeepSeek Harness · 打开 <a href="/api/status">/api/status</a> 查看原始状态</div>
+
+  <!-- 向导 -->
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:baseline;">
+      <strong>Getting started / 开始使用</strong>
+      <span class="dim" id="progtext">0 / 4</span>
+    </div>
+    <div class="bar"><div id="bar"></div></div>
+
+    <ol class="steps">
+      <li id="st-dsh">
+        <div class="num">1</div>
+        <div class="body">
+          <div class="title">DeepSeek Harness is running / DSH 已启动</div>
+          <div class="hint" id="h-dsh">loading…</div>
+        </div>
+      </li>
+      <li id="st-model">
+        <div class="num">2</div>
+        <div class="body">
+          <div class="title">Model is configured / 已配置模型</div>
+          <div class="hint">Open <a href="http://localhost:3080/" target="_blank">DSH Web UI (3080)</a> → settings → pick your model provider &amp; API key. The plugin auto-uses your default model. / 打开 DSH Web UI，在设置里选择模型并填入 API key，插件会自动使用默认模型。</div>
+        </div>
+      </li>
+      <li id="st-plat">
+        <div class="num">3</div>
+        <div class="body">
+          <div class="title">Connect a messaging platform / 连接聊天平台</div>
+          <div class="hint"><span id="h-plat">loading…</span></div>
+        </div>
+      </li>
+      <li id="st-chat">
+        <div class="num">4</div>
+        <div class="body">
+          <div class="title">Start chatting / 开始聊天</div>
+          <div class="hint">Send <code>/help</code> to your bot, then try <code>/trace</code> · <code>/task</code> · <code>/cron</code>. / 给 bot 发 <code>/help</code>，然后试试 <code>/trace</code> · <code>/task</code> · <code>/cron</code>。</div>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- 状态 -->
+  <div class="card">
+    <strong>Status / 状态</strong>
+    <div style="margin-top:8px"><strong>DSH</strong>：<span id="dsh">loading…</span></div>
+    <div style="margin-top:8px"><strong>Adapters / 适配器</strong>：<span class="adapters" id="adapters">loading…</span></div>
+  </div>
+
   <script>
+    const PLATFORM_HINTS = {
+      telegram: 'Message your bot once, then send <code>/help</code>. / 给 bot 发一条消息，然后发 <code>/help</code>。',
+      whatsapp: 'First start prints a QR code in the gateway logs — scan it in WhatsApp → Settings → Linked devices. / 首次启动的日志里有二维码，用 WhatsApp「设置 → 已连接设备」扫码。',
+      discord: 'Add the bot to a server and message it. / 把 bot 加进服务器后发消息。',
+      slack: 'Install the app into a workspace and message it. / 把应用装进工作区后发消息。',
+      feishu: 'Publish the app in the Feishu console, add it as a bot, then message it. / 在飞书开放平台发布应用并加为机器人，然后发消息。',
+      dingtalk: 'Add the bot to a group or single chat, then message it. / 把机器人加进群或单聊后发消息。',
+      wecom: 'Message the enterprise app. / 给企业微信应用发消息。',
+    };
     async function refresh() {
       try {
         const r = await fetch('/api/status');
         const s = await r.json();
-        document.getElementById('dsh').innerHTML =
-          s.dsh.status === 'ok'
-            ? `<span class="ok">● ${s.dsh.status}（v${s.version}）</span>`
-            : `<span class="bad">● ${s.dsh.error ?? 'unknown'}</span>`;
+        let done = 0;
+
+        // 1. DSH
+        const dshEl = document.getElementById('dsh');
+        const hDsh = document.getElementById('h-dsh');
+        const stDsh = document.getElementById('st-dsh');
+        if (s.dsh.status === 'ok') {
+          dshEl.innerHTML = '<span class="ok">● ok（v' + s.version + '）</span>';
+          hDsh.innerHTML = 'Running. / 运行中。';
+          stDsh.classList.add('done'); done++;
+        } else {
+          dshEl.innerHTML = '<span class="bad">● ' + (s.dsh.error ?? 'unknown') + '</span>';
+          hDsh.innerHTML = 'DSH is not reachable — check <code>DSH_BASE_URL</code> / <code>DSH_TOKEN</code> and restart. / DSH 不可达，检查配置后重启。';
+          stDsh.classList.remove('done');
+        }
+
+        // 2. model: always actionable (points to DSH Web UI); mark pending until user confirms chat works
+        document.getElementById('st-model').classList.remove('done');
+
+        // 3. platforms
+        const hPlat = document.getElementById('h-plat');
+        const stPlat = document.getElementById('st-plat');
         const ul = document.getElementById('adapters');
         ul.innerHTML = '';
+        let connected = 0;
+        const hints = [];
         for (const a of s.adapters) {
-          const li = document.createElement('li');
-          li.textContent = `${a.id}: ${a.connected === null ? '未知' : a.connected ? '已连接' : '未连接'}`;
-          li.className = a.connected === true ? 'ok' : a.connected === false ? 'bad' : 'dim';
-          ul.appendChild(li);
+          const span = document.createElement('span');
+          if (a.connected === true) { span.className = 'ok'; span.textContent = '● ' + a.id; connected++; }
+          else if (a.connected === false) { span.className = 'bad'; span.textContent = '○ ' + a.id; hints.push((PLATFORM_HINTS[a.id] ?? 'Check its env vars. / 检查对应环境变量。') + ' <code>' + a.id + '</code>'); }
+          else { span.className = 'dim'; span.textContent = '· ' + a.id; }
+          ul.appendChild(span);
         }
+        if (connected > 0) {
+          hPlat.innerHTML = 'Connected: <b>' + connected + '</b>. ' + (hints[0] ?? 'You are all set. / 已就绪。');
+          stPlat.classList.add('done'); done++;
+        } else {
+          hPlat.innerHTML = 'None connected yet. ' + (hints[0] ?? 'Set <code>GATEWAY_ADAPTERS</code> + platform env vars in <code>.env</code> and restart. / 在 .env 里配置 GATEWAY_ADAPTERS 与平台凭据后重启。');
+          stPlat.classList.remove('done');
+        }
+
+        // 4. chat: same as platforms for now
+        document.getElementById('st-chat').classList.toggle('done', connected > 0);
+        if (connected > 0) done++;
+
+        const pct = Math.round((done / 4) * 100);
+        document.getElementById('bar').style.width = pct + '%';
+        document.getElementById('progtext').textContent = done + ' / 4';
       } catch (e) {
-        document.getElementById('dsh').innerHTML = `<span class="bad">控制台不可达：${e}</span>`;
+        document.getElementById('dsh').innerHTML = '<span class="bad">console unreachable: ' + e + '</span>';
       }
     }
     refresh();
