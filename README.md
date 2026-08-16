@@ -84,25 +84,23 @@ Follow the 3-minute script in [docs/demo.md](docs/demo.md): chat → `/trace` re
 
 ## Quick start
 
-**Docker (recommended):**
+**Docker — one command (recommended):**
 
 ```bash
 git clone https://github.com/temotee2103/dsh-overdrive && cd dsh-overdrive
-export DEEPSEEK_API_KEY=sk-...            # model
-export GATEWAY_ADAPTERS=telegram,whatsapp # platforms you want
-export TELEGRAM_BOT_TOKEN=123456:ABC...   # platform credentials
-docker compose -f deploy/docker-compose.yml up -d
-# Console http://<host>:3190/   DSH Web UI http://<host>:3080/
+cp deploy/.env.example .env        # fill DEEPSEEK_API_KEY + TELEGRAM_BOT_TOKEN
+docker compose -f deploy/docker-compose.yml up -d --build
+# Console http://localhost:3190/   DSH Web UI http://localhost:3080/
 ```
 
-**From source:**
+**Already running DSH? One line:**
 
 ```bash
-npm install && npm run build
-GATEWAY_ADAPTERS=telegram TELEGRAM_BOT_TOKEN=<token> node packages/gateway/dist/index.js
+dsh plugin --profile web add @dsh-overdrive/gateway-core   # plugin
+npx @dsh-overdrive/gateway                                 # gateway
 ```
 
-First message to your bot? Run `/help` inside the chat.
+First message to your bot? Run `/help` inside the chat. Full options: [docs/quickstart.md](docs/quickstart.md)
 
 ## Chat commands
 

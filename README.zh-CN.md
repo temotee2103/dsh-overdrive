@@ -84,25 +84,23 @@ Agent:
 
 ## 快速开始
 
-**Docker（推荐）：**
+**Docker 一条命令（推荐）：**
 
 ```bash
 git clone https://github.com/temotee2103/dsh-overdrive && cd dsh-overdrive
-export DEEPSEEK_API_KEY=sk-...            # 模型
-export GATEWAY_ADAPTERS=telegram,whatsapp # 要接的平台
-export TELEGRAM_BOT_TOKEN=123456:ABC...   # 平台凭据
-docker compose -f deploy/docker-compose.yml up -d
-# 控制台 http://<host>:3190/   DSH Web UI http://<host>:3080/
+cp deploy/.env.example .env        # 填 DEEPSEEK_API_KEY + TELEGRAM_BOT_TOKEN
+docker compose -f deploy/docker-compose.yml up -d --build
+# 控制台 http://localhost:3190/   DSH Web UI http://localhost:3080/
 ```
 
-**源码运行：**
+**已有 DSH？一行装完：**
 
 ```bash
-npm install && npm run build
-GATEWAY_ADAPTERS=telegram TELEGRAM_BOT_TOKEN=<token> node packages/gateway/dist/index.js
+dsh plugin --profile web add @dsh-overdrive/gateway-core   # 装插件
+npx @dsh-overdrive/gateway                                 # 起 gateway
 ```
 
-给 bot 发第一条消息后，在聊天里输入 `/help` 查看全部命令。
+给 bot 发第一条消息后，输入 `/help` 查看全部命令。完整方案见 [docs/quickstart.md](docs/quickstart.md)
 
 ## 聊天命令
 
