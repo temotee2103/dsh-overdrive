@@ -59,3 +59,44 @@
 - [ ] 白名单外用户收到 ⛔
 - [ ] 重启 gateway 后 WhatsApp 免重新扫码（auth 目录持久化）
 - [ ] 多适配器并发：`GATEWAY_ADAPTERS='cli,telegram'` 同时可用
+
+---
+
+# 中文平台手工验收清单（M3）
+
+> 前提同 M2b；启动 gateway：`GATEWAY_ADAPTERS=<ids> ... node packages/gateway/dist/index.js`
+
+## 飞书
+
+1. open.feishu.cn 建企业自建应用 → 凭据（App ID / App Secret）；开启「机器人」能力；事件订阅选「接收消息 im.message.receive_v1」（长连接模式）
+2. ```powershell
+   $env:GATEWAY_ADAPTERS='feishu'
+   $env:FEISHU_APP_ID='cli_xxx'
+   $env:FEISHU_APP_SECRET='secret'
+   node packages/gateway/dist/index.js
+   ```
+3. 给机器人发私聊 "你好"；`ALLOWLIST='feishu:<chat_id>:<open_id>'`（日志可查）
+4. 审批：发 "dangerous xxx"，确认编号选项，回复 "1"/"2"
+
+## 钉钉
+
+1. open.dingtalk.com 建企业内部应用 → 消息推送 → 开启机器人能力，消息接收模式选 **Stream 模式** → Client ID（AppKey）/ Client Secret（AppSecret）
+2. ```powershell
+   $env:GATEWAY_ADAPTERS='dingtalk'
+   $env:DINGTALK_CLIENT_ID='<clientId>'
+   $env:DINGTALK_CLIENT_SECRET='<clientSecret>'
+   node packages/gateway/dist/index.js
+   ```
+3. 给机器人发 "你好"；审批：发 "dangerous xxx" 回复 "1"/"2"
+
+## 企业微信（需公网回调地址）
+
+1. work.weixin.qq.com 自建应用 → 接收消息：设置 URL（指向 gateway 的 `WECOM_CALLBACK_PORT`，默认 3193）、Token、EncodingAESKey（43 位）
+2. ```powershell
+   $env:GATEWAY_ADAPTERS='wecom'
+   $env:WECOM_CORP_ID='wwxxx'; $env:WECOM_SECRET='xxx'; $env:WECOM_AGENT_ID='1000002'
+   $env:WECOM_TOKEN='<token>'; $env:WECOM_ENCODING_AES_KEY='<43位>'
+   node packages/gateway/dist/index.js
+   ```
+3. 用应用可见范围内成员给应用发消息验证
+4. 无公网时用内网穿透（frp/ngrok/cloudflared）把 3193 映射出去；部署到 VPS 时直接可用

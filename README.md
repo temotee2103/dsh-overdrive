@@ -11,6 +11,7 @@
 - ✅ 子任务表面（`ctx.subagents`）；cron 调度器在 M4
 - ✅ **真机冒烟**：`dsh --profile web --patch ./cordis.smoke.yml` 加载验证通过（插件加载 + health + 消息管道回流）
 - ✅ **M2b：国际平台适配器**（WhatsApp 扫码 / Telegram / Discord / Slack），多适配器并发（`GATEWAY_ADAPTERS`）
+- ✅ **M3：中文平台适配器**（飞书 WSClient / 钉钉 Stream / 企业微信回调）
 - 📋 平台手工验收清单：`docs/smoke-platforms.md`
 
 ## 文档

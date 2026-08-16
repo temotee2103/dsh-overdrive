@@ -316,35 +316,32 @@ Expected: 2 组测试 PASS；tsc 通过（lark SDK 类型以实际为准微调�
 
 - [ ] **Step 1: 写失败测试 `test/adapters.dingtalk.test.ts`**
 
+> **SDK 实测（dingtalk-stream-sdk-nodejs@2.0.4）**：导出 `DWClient` + `TOPIC_ROBOT`（`/v1.0/im/bot/messages/get`）；回调 `registerCallbackListener(TOPIC_ROBOT, (msg) => …)`，`msg.data` 是 `RobotMessage` JSON 字符串；回复用消息内的 `sessionWebhook` 直接 POST（无需 access_token）。下列代码已按实测 API 编写。
+
 ```ts
 import { describe, expect, it } from 'vitest';
-import { buildSendBody, parseBotMessage } from '../src/adapters/dingtalk.js';
+import { buildReplyBody, parseBotMessage } from '../src/adapters/dingtalk.js';
 
-describe('parseBotMessage（BOT_MESSAGE 载荷 → NormalizedMessage）', () => {
+describe('parseBotMessage（RobotMessage → NormalizedMessage）', () => {
   it('文本消息', () => {
     const data = {
-      senderStaffId: 'u1',
       conversationId: 'cid1',
+      senderStaffId: 'u1',
       msgtype: 'text',
       text: { content: 'hello' },
+      sessionWebhook: 'https://hook.dingtalk.com/x',
     };
     const out = parseBotMessage(data);
     expect(out).toMatchObject({ chatId: 'cid1', userId: 'u1', text: 'hello' });
   });
   it('非文本返回 null', () => {
-    expect(parseBotMessage({ msgtype: 'picture', conversationId: 'c' })).toBeNull();
+    expect(parseBotMessage({ conversationId: 'c', msgtype: 'picture' })).toBeNull();
   });
 });
 
-describe('buildSendBody（机器人发送 open API 载荷）', () => {
+describe('buildReplyBody（sessionWebhook 回发载荷）', () => {
   it('文本消息体', () => {
-    const body = buildSendBody({ robotCode: 'rb1', userIds: ['u1'], text: 'hi' });
-    expect(body).toMatchObject({
-      robotCode: 'rb1',
-      userIds: ['u1'],
-      msgKey: 'sampleText',
-      msgParam: JSON.stringify({ content: 'hi' }),
-    });
+    expect(buildReplyBody('hi')).toEqual({ msgtype: 'text', text: { content: 'hi' } });
   });
 });
 ```
@@ -360,32 +357,30 @@ Expected: FAIL。
 
 ```ts
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
-import { Stream } from 'dingtalk-stream-sdk-nodejs';
+import { DWClient, TOPIC_ROBOT, type RobotMessage } from 'dingtalk-stream-sdk-nodejs';
 
 // ── 纯函数 ────────────────────────────────────────────────────
 
-export interface DingTalkBotMessage {
-  senderStaffId?: string;
-  conversationId?: string;
-  msgtype?: string;
-  text?: { content?: string };
-  msgId?: string;
+export interface ParsedRobotMessage {
+  conversationId: string;
+  senderStaffId: string;
+  text: string;
+  sessionWebhook: string;
 }
 
-export function parseBotMessage(data: DingTalkBotMessage): NormalizedMessage | null {
-  if (!data.conversationId || !data.senderStaffId || data.msgtype !== 'text') return null;
-  const text = data.text?.content;
-  if (!text) return null;
-  return { chatId: data.conversationId, userId: data.senderStaffId, text };
-}
-
-export function buildSendBody(opts: { robotCode: string; userIds: string[]; text: string }) {
+export function parseBotMessage(data: RobotMessage): ParsedRobotMessage | null {
+  if (data.msgtype !== 'text' || !data.text?.content) return null;
+  if (!data.conversationId || !data.senderStaffId || !data.sessionWebhook) return null;
   return {
-    robotCode: opts.robotCode,
-    userIds: opts.userIds,
-    msgKey: 'sampleText',
-    msgParam: JSON.stringify({ content: opts.text }),
+    conversationId: data.conversationId,
+    senderStaffId: data.senderStaffId,
+    text: data.text.content,
+    sessionWebhook: data.sessionWebhook,
   };
+}
+
+export function buildReplyBody(text: string): { msgtype: 'text'; text: { content: string } } {
+  return { msgtype: 'text', text: { content: text } };
 }
 
 export function buildNumberedText(text: string, buttons: OutboundButton[]): string {
@@ -405,70 +400,61 @@ export function matchNumberedButton(text: string, buttons: OutboundButton[]): Ou
 export interface DingTalkAdapterOptions {
   clientId: string;
   clientSecret: string;
-  robotCode?: string;
 }
 
 export class DingTalkAdapter implements Adapter {
   readonly id = 'dingtalk';
-  private stream?: Stream;
+  private client?: DWClient;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
   private readonly pendingButtons = new Map<string, OutboundButton[]>();
+  /** conversationId → 最近的 sessionWebhook（回复通道，过期由钉钉侧管理） */
+  private readonly webhooks = new Map<string, string>();
 
   constructor(private readonly opts: DingTalkAdapterOptions) {}
 
   async connect(): Promise<void> {
-    const stream = new Stream({ clientId: this.opts.clientId, clientSecret: this.opts.clientSecret });
-    this.stream = stream;
-    stream.registerCallbackHandler('BOT_MESSAGE', (data: DingTalkBotMessage) => {
-      const normalized = parseBotMessage(data);
-      if (!normalized) return;
-      const pending = this.pendingButtons.get(normalized.chatId);
+    const client = new DWClient({ clientId: this.opts.clientId, clientSecret: this.opts.clientSecret });
+    this.client = client;
+    client.registerCallbackListener(TOPIC_ROBOT, (msg) => {
+      let data: RobotMessage;
+      try {
+        data = JSON.parse(msg.data) as RobotMessage;
+      } catch {
+        return;
+      }
+      const parsed = parseBotMessage(data);
+      if (!parsed) return;
+      this.webhooks.set(parsed.conversationId, parsed.sessionWebhook);
+      const pending = this.pendingButtons.get(parsed.conversationId);
       if (pending) {
-        const button = matchNumberedButton(normalized.text, pending);
+        const button = matchNumberedButton(parsed.text, pending);
         if (button) {
-          this.pendingButtons.delete(normalized.chatId);
+          this.pendingButtons.delete(parsed.conversationId);
           this.replyCb?.(button.id);
           return;
         }
       }
-      this.messageCb?.(normalized);
+      this.messageCb?.({ chatId: parsed.conversationId, userId: parsed.senderStaffId, text: parsed.text });
     });
-    await stream.connect();
+    await client.connect();
     console.log('[dingtalk] 钉钉 Stream 已连接');
   }
 
   async send(chatId: string, payload: OutboundPayload): Promise<void> {
+    const webhook = this.webhooks.get(chatId);
+    if (!webhook) throw new Error(`钉钉会话 ${chatId} 无可用 sessionWebhook（先让用户发一条消息）`);
     if (payload.buttons?.length) this.pendingButtons.set(chatId, payload.buttons);
     const text = buildNumberedText(payload.text, payload.buttons ?? []);
-    // 经 open API 发送：需要 access_token（clientId/clientSecret 换 token）+ robotCode + userIds。
-    // 本方法只保证"发给 chatId 对应会话"语义；具体接口以钉钉开放平台为准（见 smoke-platforms.md 验收）。
-    const accessToken = await this.fetchAccessToken();
-    const url = 'https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend';
-    const res = await fetch(url, {
+    const res = await fetch(webhook, {
       method: 'POST',
-      headers: { 'x-acs-dingtalk-access-token': accessToken, 'content-type': 'application/json' },
-      body: JSON.stringify(buildSendBody({
-        robotCode: this.opts.robotCode ?? this.opts.clientId,
-        userIds: [chatId],
-        text,
-      })),
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(buildReplyBody(text)),
     });
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`钉钉发送失败 ${res.status}: ${body.slice(0, 200)}`);
+      throw new Error(`钉钉回发失败 ${res.status}: ${body.slice(0, 200)}`);
     }
-  }
-
-  private async fetchAccessToken(): Promise<string> {
-    const res = await fetch('https://api.dingtalk.com/v1.0/oauth2/accessToken', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ appKey: this.opts.clientId, appSecret: this.opts.clientSecret }),
-    });
-    const data = (await res.json()) as { accessToken?: string };
-    if (!data.accessToken) throw new Error('钉钉 accessToken 获取失败');
-    return data.accessToken;
   }
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
