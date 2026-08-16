@@ -1,0 +1,11 @@
+{
+  "name": "@dsh-overdrive/gateway-core",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "build": "tsc" },
+  "dependencies": {
+    "@dsh-overdrive/sdk": "0.1.0",
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "devDependencies": {}
+}
