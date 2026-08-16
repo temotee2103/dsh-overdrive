@@ -18,4 +18,13 @@ describe('createAdapter 注册表', () => {
   it('未知适配器抛错', () => {
     expect(() => createAdapter('nope', {})).toThrow(/unknown adapter/);
   });
+  it('feishu 缺凭据抛错', () => {
+    expect(() => createAdapter('feishu', {})).toThrow(/FEISHU_APP_ID/);
+  });
+  it('dingtalk 缺凭据抛错', () => {
+    expect(() => createAdapter('dingtalk', {})).toThrow(/DINGTALK_CLIENT_ID/);
+  });
+  it('wecom 缺凭据抛错', () => {
+    expect(() => createAdapter('wecom', {})).toThrow(/WECOM_CORP_ID/);
+  });
 });

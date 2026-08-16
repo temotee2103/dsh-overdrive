@@ -4,6 +4,9 @@ import { WhatsAppAdapter } from './adapters/whatsapp.js';
 import { TelegramAdapter } from './adapters/telegram.js';
 import { DiscordAdapter } from './adapters/discord.js';
 import { SlackAdapter } from './adapters/slack.js';
+import { FeishuAdapter } from './adapters/feishu.js';
+import { DingTalkAdapter } from './adapters/dingtalk.js';
+import { WeComAdapter } from './adapters/wecom.js';
 
 /** 平台适配器需要的全部环境变量（缺省为 undefined = 不启用该平台）。 */
 export interface AdapterEnv {
@@ -12,6 +15,16 @@ export interface AdapterEnv {
   discordBotToken?: string;
   slackBotToken?: string;
   slackAppToken?: string;
+  feishuAppId?: string;
+  feishuAppSecret?: string;
+  dingtalkClientId?: string;
+  dingtalkClientSecret?: string;
+  wecomCorpId?: string;
+  wecomSecret?: string;
+  wecomAgentId?: string;
+  wecomToken?: string;
+  wecomEncodingAESKey?: string;
+  wecomCallbackPort?: string;
 }
 
 export function parseAdapterIds(raw: string): string[] {
@@ -35,6 +48,21 @@ export function createAdapter(id: string, env: AdapterEnv): Adapter {
     case 'slack':
       if (!env.slackBotToken || !env.slackAppToken) throw new Error('slack 适配器需要 SLACK_BOT_TOKEN 与 SLACK_APP_TOKEN');
       return new SlackAdapter({ botToken: env.slackBotToken, appToken: env.slackAppToken });
+    case 'feishu':
+      if (!env.feishuAppId || !env.feishuAppSecret) throw new Error('feishu 适配器需要 FEISHU_APP_ID / FEISHU_APP_SECRET');
+      return new FeishuAdapter({ appId: env.feishuAppId, appSecret: env.feishuAppSecret });
+    case 'dingtalk':
+      if (!env.dingtalkClientId || !env.dingtalkClientSecret) throw new Error('dingtalk 适配器需要 DINGTALK_CLIENT_ID / DINGTALK_CLIENT_SECRET');
+      return new DingTalkAdapter({ clientId: env.dingtalkClientId, clientSecret: env.dingtalkClientSecret });
+    case 'wecom':
+      if (!env.wecomCorpId || !env.wecomSecret || !env.wecomAgentId || !env.wecomToken || !env.wecomEncodingAESKey) {
+        throw new Error('wecom 适配器需要 WECOM_CORP_ID / WECOM_SECRET / WECOM_AGENT_ID / WECOM_TOKEN / WECOM_ENCODING_AES_KEY');
+      }
+      return new WeComAdapter({
+        corpId: env.wecomCorpId, secret: env.wecomSecret, agentId: env.wecomAgentId,
+        token: env.wecomToken, encodingAESKey: env.wecomEncodingAESKey,
+        callbackPort: Number(env.wecomCallbackPort ?? 3193),
+      });
     default:
       throw new Error(`unknown adapter: ${id}`);
   }
@@ -48,5 +76,15 @@ export function adapterEnvFromProcess(env: NodeJS.ProcessEnv = process.env): Ada
     discordBotToken: env.DISCORD_BOT_TOKEN,
     slackBotToken: env.SLACK_BOT_TOKEN,
     slackAppToken: env.SLACK_APP_TOKEN,
+    feishuAppId: env.FEISHU_APP_ID,
+    feishuAppSecret: env.FEISHU_APP_SECRET,
+    dingtalkClientId: env.DINGTALK_CLIENT_ID,
+    dingtalkClientSecret: env.DINGTALK_CLIENT_SECRET,
+    wecomCorpId: env.WECOM_CORP_ID,
+    wecomSecret: env.WECOM_SECRET,
+    wecomAgentId: env.WECOM_AGENT_ID,
+    wecomToken: env.WECOM_TOKEN,
+    wecomEncodingAESKey: env.WECOM_ENCODING_AES_KEY,
+    wecomCallbackPort: env.WECOM_CALLBACK_PORT,
   };
 }

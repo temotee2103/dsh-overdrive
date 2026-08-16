@@ -5,8 +5,10 @@
   "scripts": { "build": "tsc" },
   "dependencies": {
     "@dsh-overdrive/sdk": "0.1.0",
+    "@larksuiteoapi/node-sdk": "^1.50.0",
     "@slack/bolt": "^3.0.0",
     "@whiskeysockets/baileys": "^6.0.1",
+    "dingtalk-stream-sdk-nodejs": "^2.0.4",
     "discord.js": "^14.27.0",
     "grammy": "^1.45.0",
     "pino": "^9.0.0",
