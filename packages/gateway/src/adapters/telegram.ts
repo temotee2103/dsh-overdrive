@@ -68,6 +68,7 @@ export class TelegramAdapter implements Adapter {
     await this.bot.api.getMe(); // 校验 token
     this.connected = true;
     this.bot.on('message', (ctx) => {
+      console.log(`[telegram] 收到更新: chat=${ctx.chat?.id} from=${ctx.from?.id} text="${ctx.message?.text?.slice(0, 40) ?? ''}"`);
       void this.handleMessage(ctx as never);
     });
     this.bot.on('callback_query:data', async (ctx) => {

@@ -8,7 +8,7 @@ import {
 import type { ApprovalOutcome, ApprovalRequestLike, DshRuntime } from './dsh-runtime.js';
 import { cronMatches, parseCron, type CronSchedule } from './cron.js';
 import { deriveProtocolEvents } from './derive.js';
-import { toDshSessionId } from './keys.js';
+import { fromDshSessionId, toDshSessionId } from './keys.js';
 
 export interface BridgeOptions {
   /** 审批超时（毫秒），超时自动拒绝。 */
@@ -58,10 +58,23 @@ export class DshBridge {
   /** 订阅 DSH 事件与审批 waterfall，并启动 cron 调度循环。 */
   start(): void {
     this.runtime.onSessionEvent((sessionId, event) => {
-      for (const ev of deriveProtocolEvents(sessionId, event)) this.server.emit(ev);
+      // DSH 事件 sessionId 带 `dsh:` 前缀（DSH 侧会话 id）；协议事件必须用协议键
+      // `platform:channel:user`，否则 gateway 无法映射回聊天（真机验证发现的 bug）。
+      const protocolSessionId = this.toProtocolSessionId(sessionId);
+      for (const ev of deriveProtocolEvents(protocolSessionId, event)) this.server.emit(ev);
     });
     this.runtime.onApprovalRequest((req, next) => this.answerApproval(req, next));
     this.startCronLoop();
+  }
+
+  /** DSH 会话 id（dsh:platform:channel:user）→ 协议会话键（platform:channel:user）。 */
+  private toProtocolSessionId(dshSessionId: string): string {
+    try {
+      const { platform, channel, user } = fromDshSessionId(dshSessionId);
+      return sessionKey(platform, channel, user);
+    } catch {
+      return dshSessionId; // 非本网关前缀（如 mock）原样透传
+    }
   }
 
   /** 释放定时器资源（ctx.effect / server 关闭时调用）。 */
@@ -153,7 +166,8 @@ export class DshBridge {
     req: ApprovalRequestLike,
     _next: () => Promise<ApprovalOutcome>,
   ): Promise<ApprovalOutcome> {
-    const sessionId = req.agent.session.header.id;
+    const dshSessionId = req.agent.session.header.id;
+    const sessionId = this.toProtocolSessionId(dshSessionId);
     const reqId = `approval-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     return new Promise<ApprovalOutcome>((resolve) => {

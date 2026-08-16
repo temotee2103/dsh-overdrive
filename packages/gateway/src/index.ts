@@ -120,6 +120,7 @@ export async function wireAdapter(
 
   adapter.onMessage(async (msg) => {
     const key = buildSessionKey(adapter.id, msg);
+    console.log(`[gateway][${adapter.id}] 收到消息 chat=${msg.chatId} user=${msg.userId} text="${msg.text.slice(0, 40)}"`);
     try {
       if (!allow.allows(key)) {
         await adapter.send(msg.chatId, { text: '⛔ 你不在白名单里。' });
@@ -129,14 +130,18 @@ export async function wireAdapter(
 
       const command = parseCommand(msg.text);
       if (command) {
+        console.log(`[gateway][${adapter.id}] 命令: ${JSON.stringify(command)}`);
         await handleCommand(adapter, client, command, key, msg.chatId, aggregator);
         return;
       }
 
       await client.upsertSession({ platform: adapter.id, channel: msg.chatId, user: msg.userId });
+      console.log(`[gateway][${adapter.id}] upsertSession OK -> ${key}`);
       await client.sendMessage(key, { text: msg.text, media: msg.media });
+      console.log(`[gateway][${adapter.id}] sendMessage OK`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      console.error(`[gateway][${adapter.id}] 处理失败: ${message}`);
       await adapter.send(msg.chatId, { text: `❌ 出错了：${message}` }).catch(() => undefined);
     }
   });
@@ -173,7 +178,12 @@ export async function wireAdapter(
     aggregator.onEvent(ev, (out) => {
       const planned = planOutbound(out);
       if (!planned) return;
-      void adapter.send(chatIdFor(out.sessionId), planned.payload).catch(() => undefined);
+      const chatId = chatIdFor(out.sessionId);
+      console.log(`[gateway][${adapter.id}] 事件 ${out.type} -> 发送到 ${chatId}`);
+      void adapter.send(chatId, planned.payload).then(
+        () => console.log(`[gateway][${adapter.id}] 已发送 ${out.type} 到 ${chatId}`),
+        (error) => console.error(`[gateway][${adapter.id}] 发送失败 ${out.type}: ${error instanceof Error ? error.message : String(error)}`),
+      );
     });
   });
 }

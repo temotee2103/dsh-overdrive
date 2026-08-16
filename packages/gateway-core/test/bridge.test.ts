@@ -79,12 +79,16 @@ describe('DshBridge', () => {
     expect(ctx.runtime.followed[0].msg).toEqual({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } });
   });
 
-  it('DSH 推送 assistant/message → 协议 message.complete', async () => {
+  it('DSH 推送 assistant/message → 协议 message.complete（sessionId 转协议键）', async () => {
     ctx = await setup();
     ctx.runtime.push('dsh:cli:cli:local', 'assistant/message', {
       message: { content: [{ type: 'text', text: '结果' }] },
     });
-    expect(ctx.events.some((e) => e.type === 'message.complete' && e.text === '结果')).toBe(true);
+    const ev = ctx.events.find((e) => e.type === 'message.complete');
+    expect(ev).toBeDefined();
+    // 真机验证发现的 bug：DSH 事件 sessionId 带 `dsh:` 前缀，协议事件必须用协议键
+    expect((ev as { sessionId: string }).sessionId).toBe('cli:cli:local');
+    expect((ev as { text: string }).text).toBe('结果');
   });
 
   it('审批流：DSH 询问 → 协议 approval.request；resolve approve → allowed-once', async () => {
