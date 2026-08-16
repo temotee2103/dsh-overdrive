@@ -17,6 +17,7 @@ function makeHandlers(emit: (ev: ServerEvent) => void): ProtocolHandlers {
     },
     async resolveApproval(reqId, decision) { return { ok: decision === 'approve' }; },
     async createTask() { return { taskId: 'task-1' }; },
+    async resetSession() { return { ok: true }; },
   };
 }
 
@@ -84,5 +85,16 @@ describe('ProtocolServer', () => {
     const { url } = await startServer();
     const res = await fetch(`${url}/v1/nope`, { headers: { authorization: `Bearer ${TOKEN}` } });
     expect(res.status).toBe(404);
+  });
+
+  it('resetSession 走 handlers（POST /v1/sessions/:id/reset）', async () => {
+    const { url } = await startServer();
+    const res = await fetch(`${url}/v1/sessions/cli%3Acli%3Alocal/reset`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
   });
 });

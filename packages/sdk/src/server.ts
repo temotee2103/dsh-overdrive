@@ -2,7 +2,7 @@ import { createServer, type Server as HttpServer, type IncomingMessage, type Ser
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, WebSocket } from 'ws';
 import type {
-  HealthResponse, ResolveApprovalResponse, SendMessageResponse, ServerEvent,
+  HealthResponse, ResetSessionResponse, ResolveApprovalResponse, SendMessageResponse, ServerEvent,
   TaskResponse, UpsertSessionResponse,
 } from './protocol.js';
 
@@ -11,6 +11,7 @@ export interface ProtocolHandlers {
   sendMessage(sessionId: string, req: { text: string; media?: { kind: string; url?: string; mime?: string; caption?: string } }): Promise<SendMessageResponse>;
   resolveApproval(reqId: string, decision: 'approve' | 'reject'): Promise<ResolveApprovalResponse>;
   createTask(req: { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string }): Promise<TaskResponse>;
+  resetSession(sessionId: string): Promise<ResetSessionResponse>;
 }
 
 export interface ProtocolServerOptions {
@@ -117,6 +118,10 @@ export class ProtocolServer {
       if (req.method === 'POST' && parts[0] === 'v1' && parts[1] === 'tasks' && parts.length === 2) {
         const body = (await readJson(req)) as { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string };
         send(200, await this.handlers.createTask(body));
+        return;
+      }
+      if (req.method === 'POST' && parts[0] === 'v1' && parts[1] === 'sessions' && parts[2] && parts[3] === 'reset') {
+        send(200, await this.handlers.resetSession(decodeURIComponent(parts[2])));
         return;
       }
       send(404, { error: 'not found' });

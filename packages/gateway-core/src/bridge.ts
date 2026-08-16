@@ -74,6 +74,11 @@ export class DshBridge {
         });
         return { taskId: result.taskId };
       },
+      resetSession: async (sessionId) => {
+        const { platform, channel, user } = parseSessionKey(sessionId);
+        await this.runtime.destroyAgent?.(toDshSessionId(platform, channel, user));
+        return { ok: true };
+      },
     };
   }
 

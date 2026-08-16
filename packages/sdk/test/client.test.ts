@@ -21,6 +21,7 @@ describe('GatewayClient', () => {
       },
       async resolveApproval(_reqId, decision) { return { ok: decision === 'approve' }; },
       async createTask() { return { taskId: 'task-1' }; },
+      async resetSession() { return { ok: true }; },
     };
     server = new ProtocolServer({ token: TOKEN, handlers });
     port = await server.listen(0);
@@ -50,6 +51,12 @@ describe('GatewayClient', () => {
     await client.sendMessage('cli:cli:local', { text: 'hi' });
     await new Promise((r) => setTimeout(r, 100));
     expect(events.some((e) => e.type === 'message.complete' && e.text === 'pong')).toBe(true);
+  });
+
+  it('resetSession 调用 /v1/sessions/:id/reset', async () => {
+    const client = await start();
+    const res = await client.resetSession('cli:cli:local');
+    expect(res).toEqual({ ok: true });
   });
 
   it('错误 token 抛错', async () => {

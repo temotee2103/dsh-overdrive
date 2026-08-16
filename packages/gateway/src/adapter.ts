@@ -17,6 +17,8 @@ export interface Adapter {
   readonly id: string;
   connect(): Promise<void>;
   send(chatId: string, payload: OutboundPayload): Promise<void>;
+  /** 可选：平台"正在输入"指示（Telegram/WhatsApp 实现，其余默认无操作）。 */
+  sendTyping?(chatId: string): Promise<void>;
   onMessage(cb: (msg: NormalizedMessage) => void): void;
   onReply(cb: (buttonId: string) => void): void;
 }

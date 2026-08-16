@@ -8,6 +8,7 @@ const TOKEN = 'test-token';
 class FakeRuntime implements DshRuntime {
   followed: Array<{ sessionId: string; msg: { text: string } }> = [];
   ensured = new Set<string>();
+  destroyed: string[] = [];
   sessionCb?: (sessionId: string, event: { type: string; data: Record<string, unknown> }) => void;
   approvalCb?: (req: ApprovalRequestLike, next: () => Promise<ApprovalOutcome>) => Promise<ApprovalOutcome>;
   subagentCalls: Array<{ label: string; prompt: string }> = [];
@@ -24,6 +25,7 @@ class FakeRuntime implements DshRuntime {
   onSessionEvent(cb: (sessionId: string, event: { type: string; data: Record<string, unknown> }) => void) { this.sessionCb = cb; }
   onApprovalRequest(cb: (req: ApprovalRequestLike, next: () => Promise<ApprovalOutcome>) => Promise<ApprovalOutcome>) { this.approvalCb = cb; }
   async spawnSubagent(req: { label: string; prompt: string }) { this.subagentCalls.push(req); return { taskId: 'sub-1' }; }
+  async destroyAgent(sessionId: string) { this.destroyed.push(sessionId); }
 
   push(sessionId: string, type: string, data: Record<string, unknown> = {}): void {
     this.sessionCb?.(sessionId, { type, data });
@@ -113,5 +115,11 @@ describe('DshBridge', () => {
     await expect(
       ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '每日', schedule: '0 8 * * *' }),
     ).rejects.toThrow(/cron/);
+  });
+
+  it('resetSession 调 runtime.destroyAgent（协议会话键 → dsh 会话 id）', async () => {
+    ctx = await setup();
+    await ctx.handlers.resetSession!('cli:cli:local');
+    expect(ctx.runtime.destroyed).toEqual(['dsh:cli:cli:local']);
   });
 });

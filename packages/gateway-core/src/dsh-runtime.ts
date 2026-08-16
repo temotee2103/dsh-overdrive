@@ -19,6 +19,8 @@ export interface AgentLike {
   sessionId: string;
   followup(msg: unknown): void;
   inject(msg: unknown): void;
+  /** 可选：释放 agent 底层资源（会话重置 /new 时调用）。 */
+  dispose?: () => Promise<void>;
 }
 
 /** gateway-core 桥接依赖的 DSH 最小面。测试用 Fake 实现，运行时由 ctx 提供。 */
@@ -30,6 +32,8 @@ export interface DshRuntime {
     cb: (req: ApprovalRequestLike, next: () => Promise<ApprovalOutcome>) => Promise<ApprovalOutcome>,
   ): void;
   spawnSubagent(req: { label: string; prompt: string }): Promise<{ taskId: string }>;
+  /** 可选：销毁 agent 实例并清空 live 映射（会话重置）。 */
+  destroyAgent?(sessionId: string): Promise<void>;
 }
 
 export interface DshRuntimeOptions {
@@ -90,13 +94,23 @@ export function createDshRuntime(ctx: Context, opts: DshRuntimeOptions = {}): Ds
       sessionId,
       followup: (msg) => handle!.agent.followup(msg as Parameters<Agent['followup']>[0]),
       inject: (msg) => handle!.agent.inject(msg as Parameters<Agent['inject']>[0]),
+      dispose: () => handle!.dispose(),
     };
     live.set(sessionId, entry);
     return entry;
   }
 
+  /** 销毁 agent 实例并清空 live 映射；不存在则无操作。 */
+  async function destroyAgent(sessionId: string): Promise<void> {
+    const entry = live.get(sessionId);
+    if (!entry) return;
+    live.delete(sessionId);
+    await entry.dispose?.();
+  }
+
   return {
     ensureAgent,
+    destroyAgent,
 
     buildUserMessage(text) {
       return createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } });

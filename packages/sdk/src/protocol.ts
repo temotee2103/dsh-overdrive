@@ -10,6 +10,7 @@ export type ServerEvent =
   | { type: 'message.delta'; sessionId: string; ts: number; text: string }
   | { type: 'message.complete'; sessionId: string; ts: number; text: string }
   | { type: 'trajectory.step'; sessionId: string; ts: number; step: TrajectoryStep }
+  | { type: 'trajectory.summary'; sessionId: string; ts: number; steps: TrajectoryStep[] }
   | { type: 'approval.request'; sessionId: string; ts: number; reqId: string; summary: string; timeoutMs: number }
   | { type: 'agent.status'; sessionId: string; ts: number; status: 'busy' | 'idle' | 'subagent-spawned' }
   | { type: 'task.done'; sessionId: string; ts: number; taskId: string; ok: boolean }
@@ -29,6 +30,9 @@ export interface ResolveApprovalResponse { ok: boolean; }
 
 export interface TaskRequest { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string; }
 export interface TaskResponse { taskId: string; }
+
+export interface ResetSessionRequest { /* 空 */ }
+export interface ResetSessionResponse { ok: boolean }
 
 export interface HealthResponse { status: 'ok'; version: string; }
 

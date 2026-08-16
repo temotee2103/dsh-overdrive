@@ -62,6 +62,10 @@ function makeMockHandlers(emit: (ev: ServerEvent) => void): ProtocolHandlers {
       }, 50);
       return { taskId };
     },
+
+    async resetSession() {
+      return { ok: true };
+    },
   };
 }
 

@@ -45,6 +45,27 @@ describe('createDshRuntime', () => {
     expect((created[0].agentOptions as { model: string }).model).toBe('deepseek-chat');
   });
 
+  it('destroyAgent 调 dispose 并清空 live（再次 ensureAgent 重新 create）', async () => {
+    const { ctx, created } = fakeCtx();
+    let disposed = 0;
+    ctx.agents.create = async (opts: Record<string, unknown>) => {
+      created.push(opts);
+      return {
+        agent: { followup: () => {}, inject: () => {} },
+        dispose: async () => { disposed++; },
+      };
+    };
+    const runtime = createDshRuntime(ctx, { cwd: 'C:/work' });
+    await runtime.ensureAgent('dsh:cli:cli:local');
+    await runtime.destroyAgent?.('dsh:cli:cli:local');
+    expect(disposed).toBe(1);
+    expect(created).toHaveLength(1);
+
+    // live 已清空 → 二次 ensureAgent 走 create 而非命中缓存
+    await runtime.ensureAgent('dsh:cli:cli:local');
+    expect(created).toHaveLength(2);
+  });
+
   it('buildUserMessage 产出 {content, source}', () => {
     const { ctx } = fakeCtx();
     const runtime = createDshRuntime(ctx, {});

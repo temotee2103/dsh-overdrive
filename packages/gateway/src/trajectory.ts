@@ -3,15 +3,15 @@ import type { ServerEvent, TrajectoryStep } from '@dsh-overdrive/sdk';
 /** turn 级轨迹聚合：收集 trajectory.step，turn/end（idle）时产出 trajectory.summary 摘要卡片。 */
 export class TrajectoryAggregator {
   private readonly buffer = new Map<string, TrajectoryStep[]>();
+  private readonly summaries = new Map<string, string>();
 
   onEvent(ev: ServerEvent, emit: (ev: ServerEvent) => void): void {
     if (ev.type === 'agent.status' && ev.status === 'idle') {
       const steps = this.buffer.get(ev.sessionId) ?? [];
       this.buffer.delete(ev.sessionId);
       if (steps.length > 0) {
-        // 注：ServerEvent 联合类型尚无 trajectory.summary（Task 2 协议修改加入），
-        // 此处临时断言为 ServerEvent；Task 2 加入协议变体后可去掉 as。
-        emit({ type: 'trajectory.summary', sessionId: ev.sessionId, ts: Date.now(), steps } as unknown as ServerEvent);
+        this.summaries.set(ev.sessionId, formatTrajectorySummary(steps));
+        emit({ type: 'trajectory.summary', sessionId: ev.sessionId, ts: Date.now(), steps });
       }
       emit(ev);
       return;
@@ -28,6 +28,11 @@ export class TrajectoryAggregator {
       return; // 单步不实时推，等摘要（减少刷屏）
     }
     emit(ev);
+  }
+
+  /** 最近一次 turn 的轨迹摘要文本（/trace 命令用），无则 null。 */
+  recentSummary(sessionId: string): string | null {
+    return this.summaries.get(sessionId) ?? null;
   }
 }
 

@@ -3,6 +3,27 @@ import type { Adapter, OutboundPayload } from './adapter.js';
 import { Allowlist, buildSessionKey } from './session.js';
 import { adapterEnvFromProcess, createAdapter, parseAdapterIds } from './config.js';
 import { CliAdapter } from './adapters/cli.js';
+import { parseCommand, HELP_TEXT, type ParsedCommand } from './commands.js';
+import { TrajectoryAggregator, formatTrajectorySummary } from './trajectory.js';
+
+/**
+ * message.delta → 打字指示去重：同一 turn 内首个 delta 触发一次 typing，
+ * complete 后复位，下一 turn 可再次触发。纯逻辑，便于单测。
+ */
+export class DeltaTracker {
+  private readonly fired = new Set<string>();
+
+  onDelta(sessionId: string, fireTyping: () => void): void {
+    if (this.fired.has(sessionId)) return;
+    this.fired.add(sessionId);
+    fireTyping();
+  }
+
+  /** turn 结束（message.complete / error）时复位，允许下一 turn 再次触发 typing。 */
+  onComplete(sessionId: string): void {
+    this.fired.delete(sessionId);
+  }
+}
 
 /** 事件 → 平台输出。纯函数，便于单测。返回 null 表示该事件不产出消息。 */
 export function planOutbound(ev: ServerEvent): { payload: OutboundPayload } | null {
@@ -10,11 +31,13 @@ export function planOutbound(ev: ServerEvent): { payload: OutboundPayload } | nu
     case 'message.complete':
       return { payload: { text: ev.text } };
     case 'message.delta':
-      return null; // MVP：等 complete 一次性输出，流式渲染放 M4
+      return null; // 流式渲染走 sendTyping（见 wireAdapter），不产出文本
     case 'trajectory.step': {
       const icon = ev.step.kind === 'tool' ? '🛠️' : ev.step.kind === 'subagent' ? '🤖' : '🧠';
       return { payload: { text: `${icon} ${ev.step.label}` } };
     }
+    case 'trajectory.summary':
+      return { payload: { text: formatTrajectorySummary(ev.steps) } };
     case 'approval.request':
       return {
         payload: {
@@ -42,7 +65,48 @@ export interface WireOptions {
   allowlist: string[];
 }
 
-/** 单个适配器的接线：白名单 → upsert → sendMessage；按钮 → resolveApproval；错误兜底。 */
+/** 命令面分发：/trace /new /task /cron /agents /help（M4）。 */
+async function handleCommand(
+  adapter: Adapter,
+  client: GatewayClient,
+  command: ParsedCommand,
+  sessionId: string,
+  chatId: string,
+  aggregator: TrajectoryAggregator,
+): Promise<void> {
+  switch (command.kind) {
+    case 'trace': {
+      const summary = aggregator.recentSummary(sessionId);
+      await adapter.send(chatId, { text: summary ?? '暂无轨迹（尚未运行或已重置）。' });
+      return;
+    }
+    case 'new': {
+      await client.resetSession(sessionId);
+      await adapter.send(chatId, { text: '🆕 会话已重置' });
+      return;
+    }
+    case 'task': {
+      await client.createTask({ sessionId, kind: 'subagent', prompt: command.prompt });
+      await adapter.send(chatId, { text: '🤖 子任务已派出' });
+      return;
+    }
+    case 'cron': {
+      await client.createTask({ sessionId, kind: 'cron', prompt: command.prompt, schedule: command.schedule });
+      await adapter.send(chatId, { text: '⏰ 定时任务已注册' });
+      return;
+    }
+    case 'agents': {
+      await adapter.send(chatId, { text: '（M4 简化）子任务状态由 agent 汇报，/task 派发' });
+      return;
+    }
+    case 'help': {
+      await adapter.send(chatId, { text: HELP_TEXT });
+      return;
+    }
+  }
+}
+
+/** 单个适配器的接线：白名单 → 命令面/upsert → sendMessage；按钮 → resolveApproval；事件流经轨迹聚合。 */
 export async function wireAdapter(
   adapter: Adapter,
   client: GatewayClient,
@@ -50,6 +114,8 @@ export async function wireAdapter(
 ): Promise<void> {
   const allow = new Allowlist(opts.allowlist);
   const chatIds = new Map<string, string>();
+  const aggregator = new TrajectoryAggregator();
+  const deltas = new DeltaTracker();
 
   adapter.onMessage(async (msg) => {
     const key = buildSessionKey(adapter.id, msg);
@@ -59,6 +125,13 @@ export async function wireAdapter(
         return;
       }
       chatIds.set(key, msg.chatId);
+
+      const command = parseCommand(msg.text);
+      if (command) {
+        await handleCommand(adapter, client, command, key, msg.chatId, aggregator);
+        return;
+      }
+
       await client.upsertSession({ platform: adapter.id, channel: msg.chatId, user: msg.userId });
       await client.sendMessage(key, { text: msg.text, media: msg.media });
     } catch (error) {
@@ -88,8 +161,19 @@ export async function wireAdapter(
   };
 
   await client.connect((ev) => {
-    const out = planOutbound(ev);
-    if (out) void adapter.send(chatIdFor(ev.sessionId), out.payload).catch(() => undefined);
+    // 流式渲染：delta → 打字指示（去重），complete/error → 复位（下一 turn 可再触发）
+    if (ev.type === 'message.delta') {
+      deltas.onDelta(ev.sessionId, () => void adapter.sendTyping?.(chatIdFor(ev.sessionId)));
+    } else if (ev.type === 'message.complete' || ev.type === 'error') {
+      deltas.onComplete(ev.sessionId);
+    }
+
+    // 轨迹聚合：trajectory.step 攒批，idle 时产出 trajectory.summary（减少刷屏）
+    aggregator.onEvent(ev, (out) => {
+      const planned = planOutbound(out);
+      if (!planned) return;
+      void adapter.send(chatIdFor(out.sessionId), planned.payload).catch(() => undefined);
+    });
   });
 }
 

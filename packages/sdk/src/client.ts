@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 import type {
-  HealthResponse, ResolveApprovalRequest, ResolveApprovalResponse, SendMessageRequest,
+  HealthResponse, ResetSessionResponse, ResolveApprovalRequest, ResolveApprovalResponse, SendMessageRequest,
   SendMessageResponse, ServerEvent, TaskRequest, TaskResponse,
   UpsertSessionRequest, UpsertSessionResponse,
 } from './protocol.js';
@@ -44,6 +44,11 @@ export class GatewayClient {
 
   createTask(req: TaskRequest): Promise<TaskResponse> {
     return this.request('POST', '/v1/tasks', req);
+  }
+
+  /** 重置会话：销毁 agent 实例并清空 live 映射（/new 命令走这里）。 */
+  resetSession(sessionId: string): Promise<ResetSessionResponse> {
+    return this.request('POST', `/v1/sessions/${encodeURIComponent(sessionId)}/reset`);
   }
 
   /** 建立 WS 事件订阅，返回断开函数。 */
