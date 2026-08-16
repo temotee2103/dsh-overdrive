@@ -1,12 +1,12 @@
 {
   "name": "@dsh-overdrive/gateway",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "build": "tsc"
   },
   "dependencies": {
-    "@dsh-overdrive/sdk": "0.1.0",
+    "@dsh-overdrive/sdk": "0.1.1",
     "@larksuiteoapi/node-sdk": "^1.50.0",
     "@slack/bolt": "^3.0.0",
     "@whiskeysockets/baileys": "^6.0.1",
@@ -20,7 +20,7 @@
     "@types/qrcode-terminal": "^0.12.2"
   },
   "license": "MIT",
-  "description": "dsh-overdrive: 多平台消息网关（WhatsApp/Telegram/Discord/Slack/飞书/钉钉/企业微信）",
+  "description": "dsh-overdrive: multi-platform messaging gateway for DeepSeek Harness (WhatsApp/Telegram/Discord/Slack/Feishu/DingTalk/WeCom)",
   "repository": {
     "type": "git",
     "url": "https://github.com/temotee2103/dsh-overdrive.git"

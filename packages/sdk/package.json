@@ -1,6 +1,6 @@
 {
   "name": "@dsh-overdrive/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,7 +20,7 @@
     "@types/ws": "^8.5.12"
   },
   "license": "MIT",
-  "description": "dsh-overdrive: Remote Session Driver 协议（类型/服务端/客户端）",
+  "description": "dsh-overdrive: Remote Session Driver protocol (types, server, client) for DeepSeek Harness",
   "repository": {
     "type": "git",
     "url": "https://github.com/temotee2103/dsh-overdrive.git"

@@ -1,16 +1,16 @@
 {
   "name": "@dsh-overdrive/mock-dsh",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "build": "tsc"
   },
   "dependencies": {
-    "@dsh-overdrive/sdk": "0.1.0"
+    "@dsh-overdrive/sdk": "0.1.1"
   },
   "devDependencies": {},
   "license": "MIT",
-  "description": "dsh-overdrive: 协议服务端 mock（开发/测试用）",
+  "description": "dsh-overdrive: protocol server mock (development & testing)",
   "repository": {
     "type": "git",
     "url": "https://github.com/temotee2103/dsh-overdrive.git"

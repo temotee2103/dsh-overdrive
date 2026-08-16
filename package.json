@@ -1,7 +1,7 @@
 {
   "name": "dsh-overdrive",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -18,7 +18,7 @@
     "vitest": "^2.1.0"
   },
   "license": "MIT",
-  "description": "dsh-overdrive: 让 DeepSeek Harness 变成多平台聊天智能体",
+  "description": "dsh-overdrive: turn DeepSeek Harness into a multi-platform chat agent you can see thinking",
   "repository": {
     "type": "git",
     "url": "https://github.com/temotee2103/dsh-overdrive.git"

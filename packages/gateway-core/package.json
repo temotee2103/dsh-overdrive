@@ -1,12 +1,12 @@
 {
   "name": "@dsh-overdrive/gateway-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "build": "tsc"
   },
   "dependencies": {
-    "@dsh-overdrive/sdk": "0.1.0",
+    "@dsh-overdrive/sdk": "0.1.1",
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-agent": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
@@ -14,7 +14,7 @@
   },
   "devDependencies": {},
   "license": "MIT",
-  "description": "dsh-overdrive: DeepSeek Harness 插件（多平台桥接核心）",
+  "description": "dsh-overdrive: DeepSeek Harness plugin — multi-platform chat bridge core (trajectory / approval / multi-agent)",
   "repository": {
     "type": "git",
     "url": "https://github.com/temotee2103/dsh-overdrive.git"
