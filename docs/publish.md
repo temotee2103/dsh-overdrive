@@ -34,4 +34,4 @@ dsh plugin --profile web add @dsh-overdrive/gateway-core
 ## 注意事项
 
 - DSH 运行时包是 `^0.1.0-rc.6` pre-release：发布前确认 npm registry 可解析，且 gateway-core 的 peer/deps 版本与实际安装一致
-- 正式发布前把 `package.json` 里 `repository.url` 的 `<owner>` 替换为真实 GitHub 用户名
+- 正式发布前把 `package.json` 里 `repository.url` 的 `temotee2103` 替换为真实 GitHub 用户名

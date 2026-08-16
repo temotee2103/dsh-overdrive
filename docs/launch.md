@@ -6,7 +6,7 @@
 - [ ] LICENSE / README / CI 就位
 - [ ] `npm publish` 三个包完成（见 docs/publish.md）
 - [ ] GitHub repo 公开 + `dsh-plugin` topic 打上
-- [ ] `repository.url` 的 `<owner>` 替换为真实 GitHub 用户名
+- [ ] `repository.url` 的 `temotee2103` 替换为真实 GitHub 用户名
 - [ ] 演示视频录好（docs/demo.md）
 - [ ] 真机验收至少一个平台闭环（docs/smoke-platforms.md）
 

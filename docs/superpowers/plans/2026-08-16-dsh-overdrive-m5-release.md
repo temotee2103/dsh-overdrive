@@ -411,11 +411,11 @@ jobs:
 ```json
   "license": "MIT",
   "description": "dsh-overdrive: 让 DeepSeek Harness 变成多平台聊天智能体（<包职责>）",
-  "repository": { "type": "git", "url": "https://github.com/<owner>/dsh-overdrive.git" },
+  "repository": { "type": "git", "url": "https://github.com/temotee2103/dsh-overdrive.git" },
   "publishConfig": { "access": "public" }
 ```
 
-根 `package.json` 同补 `license: MIT` + `repository`（owner 用占位 `<owner>`，发布前替换为真实 GitHub 用户名）。
+根 `package.json` 同补 `license: MIT` + `repository`（owner 用占位 `temotee2103`，发布前替换为真实 GitHub 用户名）。
 
 - [ ] **Step 4: 提交**
 
@@ -596,7 +596,7 @@ git -c user.name="dsh-overdrive" -c user.email="dev@dsh-overdrive.local" commit 
 ## One-command deploy / 一条命令部署
 
 ```bash
-git clone https://github.com/<owner>/dsh-overdrive && cd dsh-overdrive
+git clone https://github.com/temotee2103/dsh-overdrive && cd dsh-overdrive
 cp deploy/.env.example .env   # 配置 DEEPSEEK_API_KEY 与平台凭据（若有）
 docker compose -f deploy/docker-compose.yml up -d
 # 控制台：http://<host>:3190/   DSH Web UI：http://<host>:3080/
@@ -641,6 +641,6 @@ Expected: 全量 PASS、E2E PASS。
 ## Self-Review 结果
 
 - **Spec 覆盖：** 设计 §2.3 零配置一键部署（T1 docker-compose）、§12 部署（端口 3080/3190/3193 与数据卷 `dsh-data`）、§13 M5 全部条目（T2 控制台、T3 License/CI、T4 npm 分发、T5 文档/演示/渠道）。
-- **占位符扫描：** 无 TBD/TODO。`<owner>` 是发布前需替换的真实 GitHub 用户名（publish 文档明确标注，非实现占位）；真实发布动作（npm publish/push/docker run）明确标注为"需凭据/环境，不在本计划执行"。
+- **占位符扫描：** 无 TBD/TODO。`temotee2103` 是发布前需替换的真实 GitHub 用户名（publish 文档明确标注，非实现占位）；真实发布动作（npm publish/push/docker run）明确标注为"需凭据/环境，不在本计划执行"。
 - **类型一致性：** `Adapter.status?` 可选方法（不破坏既有实现与测试）；`createStatusServer` 签名与 status.test 一致；`index.ts` 中 `adapters` 数组在 `main()` 作用域内可用。
 - **风险暴露：** docker-compose 未在本机运行验证（无 Docker）——YAML 与 env 键人工核对并在文档注明 `docker compose config -q` 校验步骤；`console.html` 读取路径用 `fileURLToPath(new URL('../../../web/console.html', import.meta.url))`（从 dist 运行时相对路径已核对）；`_path` 导出仅为防未使用告警，属可接受的最小让步。

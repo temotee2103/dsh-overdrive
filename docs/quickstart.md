@@ -3,7 +3,7 @@
 ## One-command deploy / 一条命令部署
 
 ```bash
-git clone https://github.com/<owner>/dsh-overdrive && cd dsh-overdrive
+git clone https://github.com/temotee2103/dsh-overdrive && cd dsh-overdrive
 cp deploy/.env.example .env   # 配置 DEEPSEEK_API_KEY 与平台凭据（若有）
 docker compose -f deploy/docker-compose.yml up -d
 # 控制台：http://<host>:3190/   DSH Web UI：http://<host>:3080/

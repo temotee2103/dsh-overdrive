@@ -23,7 +23,7 @@
   "description": "dsh-overdrive: 多平台消息网关（WhatsApp/Telegram/Discord/Slack/飞书/钉钉/企业微信）",
   "repository": {
     "type": "git",
-    "url": "https://github.com/<owner>/dsh-overdrive.git"
+    "url": "https://github.com/temotee2103/dsh-overdrive.git"
   },
   "publishConfig": {
     "access": "public"
