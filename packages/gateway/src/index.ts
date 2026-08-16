@@ -1,6 +1,7 @@
 import { GatewayClient, type ServerEvent } from '@dsh-overdrive/sdk';
 import type { Adapter, OutboundPayload } from './adapter.js';
 import { Allowlist, buildSessionKey } from './session.js';
+import { adapterEnvFromProcess, createAdapter, parseAdapterIds } from './config.js';
 import { CliAdapter } from './adapters/cli.js';
 
 /** 事件 → 平台输出。纯函数，便于单测。返回 null 表示该事件不产出消息。 */
@@ -37,38 +38,46 @@ export function planOutbound(ev: ServerEvent): { payload: OutboundPayload } | nu
   }
 }
 
-async function main(): Promise<void> {
-  const dshBaseUrl = process.env.DSH_BASE_URL ?? 'http://127.0.0.1:3191';
-  const dshToken = process.env.DSH_TOKEN ?? 'dev-token';
-  const allowlist = (process.env.ALLOWLIST ?? '')
-    .split(',').map((s) => s.trim()).filter(Boolean);
+export interface WireOptions {
+  allowlist: string[];
+}
 
-  const client = new GatewayClient(dshBaseUrl, dshToken);
-  const adapter: Adapter = new CliAdapter();
-  const allow = new Allowlist(allowlist);
+/** 单个适配器的接线：白名单 → upsert → sendMessage；按钮 → resolveApproval；错误兜底。 */
+export async function wireAdapter(
+  adapter: Adapter,
+  client: GatewayClient,
+  opts: WireOptions,
+): Promise<void> {
+  const allow = new Allowlist(opts.allowlist);
   const chatIds = new Map<string, string>();
-
-  await client.health(); // 确认 DSH 侧（或 mock）活着
-  await adapter.connect();
 
   adapter.onMessage(async (msg) => {
     const key = buildSessionKey(adapter.id, msg);
-    if (!allow.allows(key)) {
-      await adapter.send(msg.chatId, { text: '⛔ 你不在白名单里。' });
-      return;
+    try {
+      if (!allow.allows(key)) {
+        await adapter.send(msg.chatId, { text: '⛔ 你不在白名单里。' });
+        return;
+      }
+      chatIds.set(key, msg.chatId);
+      await client.upsertSession({ platform: adapter.id, channel: msg.chatId, user: msg.userId });
+      await client.sendMessage(key, { text: msg.text, media: msg.media });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await adapter.send(msg.chatId, { text: `❌ 出错了：${message}` }).catch(() => undefined);
     }
-    chatIds.set(key, msg.chatId);
-    await client.upsertSession({ platform: adapter.id, channel: msg.chatId, user: msg.userId });
-    await client.sendMessage(key, { text: msg.text, media: msg.media });
   });
 
   adapter.onReply(async (buttonId) => {
-    const idx = buttonId.indexOf(':');
-    if (idx < 0) return;
-    const action = buttonId.slice(0, idx);
-    const reqId = buttonId.slice(idx + 1);
-    if ((action === 'approve' || action === 'reject') && reqId) {
-      await client.resolveApproval(reqId, action);
+    try {
+      const idx = buttonId.indexOf(':');
+      if (idx < 0) return;
+      const action = buttonId.slice(0, idx) as 'approve' | 'reject';
+      const reqId = buttonId.slice(idx + 1);
+      if ((action === 'approve' || action === 'reject') && reqId) {
+        await client.resolveApproval(reqId, action);
+      }
+    } catch (error) {
+      console.error(`[gateway] resolveApproval 失败: ${error instanceof Error ? error.message : String(error)}`);
     }
   });
 
@@ -80,10 +89,32 @@ async function main(): Promise<void> {
 
   await client.connect((ev) => {
     const out = planOutbound(ev);
-    if (out) void adapter.send(chatIdFor(ev.sessionId), out.payload);
+    if (out) void adapter.send(chatIdFor(ev.sessionId), out.payload).catch(() => undefined);
   });
+}
 
-  process.stdout.write('[gateway] 就绪。输入消息开始对话；/btn <id> 触发按钮；Ctrl+C 退出。\n');
+async function main(): Promise<void> {
+  const dshBaseUrl = process.env.DSH_BASE_URL ?? 'http://127.0.0.1:3191';
+  const dshToken = process.env.DSH_TOKEN ?? 'dev-token';
+  const allowlist = (process.env.ALLOWLIST ?? '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+  const adapterIds = parseAdapterIds(process.env.GATEWAY_ADAPTERS ?? 'cli');
+  const env = adapterEnvFromProcess();
+
+  const client = new GatewayClient(dshBaseUrl, dshToken);
+  await client.health(); // 确认 DSH 侧（或 mock）活着
+
+  const adapters: Adapter[] = adapterIds.map((id) => createAdapter(id, env));
+  for (const adapter of adapters) {
+    await adapter.connect();
+    await wireAdapter(adapter, client, { allowlist });
+    console.log(`[gateway] ${adapter.id} 适配器已就绪`);
+  }
+
+  process.stdout.write(`[gateway] 就绪（适配器: ${adapterIds.join(', ')}）。Ctrl+C 退出。\n`);
 }
 
 if (process.argv[1]?.endsWith('index.js')) void main();
+
+// 保留 CLI 的直接导入（E2E 用）
+export { CliAdapter };
