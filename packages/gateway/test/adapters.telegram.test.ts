@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buttonRows, normalizeTelegramMessage } from '../src/adapters/telegram.js';
+import { buttonRows, normalizeTelegramMessage, telegramImageUrl, telegramPhotoFileId } from '../src/adapters/telegram.js';
 
 describe('normalizeTelegramMessage', () => {
   it('文本消息 → NormalizedMessage（chatId/userId 字符串化）', () => {
@@ -9,6 +9,18 @@ describe('normalizeTelegramMessage', () => {
   });
   it('无文本返回 null', () => {
     expect(normalizeTelegramMessage({ chat: { id: 1 }, from: { id: 2 }, message: { photo: [] } } as never)).toBeNull();
+  });
+  it('含 photo 的消息 → media: { kind: "image" }，file_id → 下载 URL 模板（真实 getFile 在 adapter）', () => {
+    const ctx = {
+      chat: { id: 1 },
+      from: { id: 2 },
+      message: { photo: [{ file_id: 'small' }, { file_id: 'large' }] },
+    };
+    expect(normalizeTelegramMessage(ctx as never)).toMatchObject({
+      chatId: '1', userId: '2', text: '', media: { kind: 'image' },
+    });
+    expect(telegramPhotoFileId(ctx.message.photo)).toBe('large');
+    expect(telegramImageUrl('SECRET', 'photos/file_10.jpg')).toBe('https://api.telegram.org/file/botSECRET/photos/file_10.jpg');
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeSlackMessage, slackBlocks } from '../src/adapters/slack.js';
+import { normalizeSlackMessage, slackBlocks, slackFileUrl } from '../src/adapters/slack.js';
 
 describe('normalizeSlackMessage', () => {
   it('文本消息 → NormalizedMessage', () => {
@@ -9,6 +9,18 @@ describe('normalizeSlackMessage', () => {
   });
   it('bot 自己的消息（subtype=bot_message）返回 null', () => {
     expect(normalizeSlackMessage({ channel: 'C1', user: 'U2', text: 'x', subtype: 'bot_message' })).toBeNull();
+  });
+  it('含文件 → media: { kind: "image", url }（纯函数 slackFileUrl 取 files[0].url_private）', () => {
+    const raw = {
+      channel: 'C1',
+      user: 'U2',
+      text: '',
+      files: [{ url_private: 'https://files.slack.com/files/x.png', mimetype: 'image/png' }],
+    };
+    expect(slackFileUrl(raw)).toBe('https://files.slack.com/files/x.png');
+    expect(normalizeSlackMessage(raw)).toMatchObject({
+      chatId: 'C1', userId: 'U2', text: '', media: { kind: 'image', url: 'https://files.slack.com/files/x.png' },
+    });
   });
 });
 

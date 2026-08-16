@@ -14,12 +14,31 @@ export interface RawSlackMessage {
   text?: string;
   subtype?: string;
   bot_id?: string;
+  files?: Array<{ url_private?: string; mimetype?: string }>;
+}
+
+/** 纯函数：取第一条文件的私有 URL（files[0].url_private）；无文件返回 undefined。 */
+export function slackFileUrl(raw: RawSlackMessage): string | undefined {
+  return raw.files?.[0]?.url_private;
+}
+
+type MediaKind = 'voice' | 'image' | 'video' | 'file';
+
+function mediaKindFromMime(mime?: string): MediaKind {
+  if (mime?.startsWith('image/')) return 'image';
+  if (mime?.startsWith('audio/')) return 'voice';
+  if (mime?.startsWith('video/')) return 'video';
+  return 'file';
 }
 
 export function normalizeSlackMessage(raw: RawSlackMessage): NormalizedMessage | null {
   if (!raw.channel || !raw.user || raw.subtype === 'bot_message' || raw.bot_id) return null;
-  if (!raw.text) return null;
-  return { chatId: raw.channel, userId: raw.user, text: raw.text };
+  const text = raw.text ?? '';
+  const url = slackFileUrl(raw);
+  if (!text && !url) return null;
+  const out: NormalizedMessage = { chatId: raw.channel, userId: raw.user, text };
+  if (url) out.media = { kind: mediaKindFromMime(raw.files?.[0]?.mimetype), url };
+  return out;
 }
 
 export function slackBlocks(text: string, buttons: OutboundButton[]): unknown[] {

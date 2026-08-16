@@ -5,6 +5,7 @@ import {
   matchNumberedReply,
   normalizeWhatsAppMessage,
   parseNativeButtonResponse,
+  whatsappImageUrl,
   type RawWhatsAppMessage,
 } from '../src/adapters/whatsapp.js';
 
@@ -34,6 +35,28 @@ describe('normalizeWhatsAppMessage', () => {
   it('非文本消息返回 null', () => {
     expect(normalizeWhatsAppMessage({ key: { remoteJid: 'x' }, message: { imageMessage: {} } })).toBeNull();
     expect(normalizeWhatsAppMessage({ key: { remoteJid: 'x' }, message: {} })).toBeNull();
+  });
+});
+
+describe('whatsappImageUrl / 媒体消息捕获', () => {
+  it('imageMessage url + caption → media: { kind: "image", url }；无 url 退 directPath', () => {
+    const raw = {
+      key: { remoteJid: '60123@s.whatsapp.net' },
+      message: { imageMessage: { url: 'https://mmg.whatsapp.net/f/x.jpg', caption: '看图' } },
+      messageType: 'imageMessage',
+    };
+    expect(whatsappImageUrl(raw)).toBe('https://mmg.whatsapp.net/f/x.jpg');
+    expect(normalizeWhatsAppMessage(raw)).toMatchObject({
+      kind: 'message',
+      msg: {
+        chatId: '60123@s.whatsapp.net',
+        userId: '60123@s.whatsapp.net',
+        text: '看图',
+        media: { kind: 'image', url: 'https://mmg.whatsapp.net/f/x.jpg' },
+      },
+    });
+    // directPath 兜底（M4 简化：URL 直接透传，认证头后续再补）
+    expect(whatsappImageUrl({ message: { imageMessage: { directPath: '/d/p.jpg' } } })).toBe('/d/p.jpg');
   });
 });
 

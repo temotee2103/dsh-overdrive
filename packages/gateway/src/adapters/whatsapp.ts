@@ -16,6 +16,10 @@ export interface RawWhatsAppMessage {
   message?: {
     conversation?: string;
     extendedTextMessage?: { text?: string };
+    imageMessage?: { url?: string; directPath?: string; caption?: string; mimetype?: string };
+    audioMessage?: { url?: string; directPath?: string; mimetype?: string };
+    videoMessage?: { url?: string; directPath?: string; mimetype?: string; caption?: string };
+    documentMessage?: { url?: string; directPath?: string; mimetype?: string; fileName?: string };
     interactiveResponseMessage?: { nativeFlowResponseMessage?: { paramsJson?: string } };
   } & Record<string, unknown>;
   messageType?: string;
@@ -29,16 +33,52 @@ export function extractWhatsAppText(raw: RawWhatsAppMessage): string | null {
   return null;
 }
 
+/** 纯函数：imageMessage 的下载 URL（Baileys 已解析的 url 优先，退 directPath）；无图返回 undefined。 */
+export function whatsappImageUrl(raw: RawWhatsAppMessage): string | undefined {
+  const img = raw.message?.imageMessage;
+  return img?.url ?? img?.directPath ?? undefined;
+}
+
+function waMediaUrl(m: { url?: string; directPath?: string } | undefined): string | undefined {
+  return m?.url ?? m?.directPath ?? undefined;
+}
+
+/** 媒体消息 → media 引用（kind + url）：image/voice/video/file；无 url 视为无法透传，返回 undefined。 */
+function whatsappMedia(raw: RawWhatsAppMessage): NormalizedMessage['media'] {
+  const msg = raw.message;
+  if (!msg) return undefined;
+  if (msg.imageMessage) {
+    const url = whatsappImageUrl(raw);
+    return url ? { kind: 'image', url } : undefined;
+  }
+  if (msg.audioMessage) {
+    const url = waMediaUrl(msg.audioMessage);
+    return url ? { kind: 'voice', url } : undefined;
+  }
+  if (msg.videoMessage) {
+    const url = waMediaUrl(msg.videoMessage);
+    return url ? { kind: 'video', url } : undefined;
+  }
+  if (msg.documentMessage) {
+    const url = waMediaUrl(msg.documentMessage);
+    return url ? { kind: 'file', url } : undefined;
+  }
+  return undefined;
+}
+
 export function normalizeWhatsAppMessage(raw: RawWhatsAppMessage):
   | { kind: 'message'; msg: NormalizedMessage }
   | null {
   if (raw.key?.fromMe) return null;
-  const text = extractWhatsAppText(raw);
-  if (!text) return null;
+  const media = whatsappMedia(raw);
+  const text = extractWhatsAppText(raw) ?? raw.message?.imageMessage?.caption ?? '';
+  if (!text && !media) return null;
   const remoteJid = raw.key?.remoteJid;
   if (!remoteJid) return null;
   const userId = raw.key?.participant ?? remoteJid;
-  return { kind: 'message', msg: { chatId: remoteJid, userId, text } };
+  const msg: NormalizedMessage = { chatId: remoteJid, userId, text };
+  if (media) msg.media = media;
+  return { kind: 'message', msg };
 }
 
 export function buildNumberedReply(text: string, buttons: OutboundButton[]): string {

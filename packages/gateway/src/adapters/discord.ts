@@ -16,12 +16,31 @@ export interface RawDiscordMessage {
   channelId?: string;
   author?: { id?: string; bot?: boolean };
   content?: string;
+  attachments?: Array<{ url?: string; contentType?: string }>;
+}
+
+/** 纯函数：取第一条附件的下载 URL（attachments.first().url）；无附件返回 undefined。 */
+export function discordAttachmentUrl(raw: RawDiscordMessage): string | undefined {
+  return raw.attachments?.[0]?.url;
+}
+
+type MediaKind = 'voice' | 'image' | 'video' | 'file';
+
+function mediaKindFromMime(mime?: string): MediaKind {
+  if (mime?.startsWith('image/')) return 'image';
+  if (mime?.startsWith('audio/')) return 'voice';
+  if (mime?.startsWith('video/')) return 'video';
+  return 'file';
 }
 
 export function normalizeDiscordMessage(raw: RawDiscordMessage): NormalizedMessage | null {
   if (!raw.channelId || !raw.author?.id || raw.author.bot) return null;
-  if (!raw.content) return null;
-  return { chatId: raw.channelId, userId: raw.author.id, text: raw.content };
+  const text = raw.content ?? '';
+  const url = discordAttachmentUrl(raw);
+  if (!text && !url) return null;
+  const out: NormalizedMessage = { chatId: raw.channelId, userId: raw.author.id, text };
+  if (url) out.media = { kind: mediaKindFromMime(raw.attachments?.[0]?.contentType), url };
+  return out;
 }
 
 export function discordComponents(buttons: OutboundButton[]): Array<{ type: 1; components: unknown[] }> {
