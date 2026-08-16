@@ -1,0 +1,8 @@
+{
+  "name": "@dsh-overdrive/gateway",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "build": "tsc" },
+  "dependencies": { "@dsh-overdrive/sdk": "0.1.0" },
+  "devDependencies": {}
+}
