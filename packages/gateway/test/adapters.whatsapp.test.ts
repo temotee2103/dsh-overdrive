@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildNumberedReply, matchNumberedReply, normalizeWhatsAppMessage } from '../src/adapters/whatsapp.js';
+import {
+  buildNativeFlowButtons,
+  buildNumberedReply,
+  matchNumberedReply,
+  normalizeWhatsAppMessage,
+  parseNativeButtonResponse,
+  type RawWhatsAppMessage,
+} from '../src/adapters/whatsapp.js';
 
 describe('normalizeWhatsAppMessage', () => {
   it('文本消息 → NormalizedMessage（chatId=JID, userId=发送者）', () => {
@@ -49,5 +56,60 @@ describe('buildNumberedReply / matchNumberedReply（审批按钮的编号文本�
     expect(matchNumberedReply('2', buttons)?.id).toBe('reject:r1');
     expect(matchNumberedReply('9', buttons)).toBeUndefined();
     expect(matchNumberedReply('同意', buttons)).toBeUndefined();
+  });
+});
+
+describe('buildNativeFlowButtons（WhatsApp 原生交互按钮）', () => {
+  it('按钮 → nativeFlowMessage buttons 数组', () => {
+    const buttons = buildNativeFlowButtons([
+      { id: 'approve:r1', label: '✅ 同意' },
+      { id: 'reject:r1', label: '🚫 拒绝' },
+    ]);
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]).toMatchObject({
+      name: 'quick_reply',
+      buttonParamsJson: JSON.stringify({ id: 'approve:r1', display_text: '✅ 同意' }),
+    });
+    expect(buttons[1]).toMatchObject({
+      name: 'quick_reply',
+      buttonParamsJson: JSON.stringify({ id: 'reject:r1', display_text: '🚫 拒绝' }),
+    });
+  });
+
+  it('空数组 → 空 buttons', () => {
+    expect(buildNativeFlowButtons([])).toEqual([]);
+  });
+});
+
+describe('parseNativeButtonResponse（交互按钮响应解析）', () => {
+  it('解析 paramsJson 中的 id', () => {
+    const raw: RawWhatsAppMessage = {
+      key: { remoteJid: '60123@s.whatsapp.net' },
+      message: {
+        interactiveResponseMessage: {
+          nativeFlowResponseMessage: { paramsJson: JSON.stringify({ id: 'approve:r1' }) },
+        },
+      },
+      messageType: 'interactiveResponseMessage',
+    };
+    expect(parseNativeButtonResponse(raw)).toBe('approve:r1');
+  });
+
+  it('无交互响应 / 非法 JSON / 缺 id 均返回 null', () => {
+    expect(parseNativeButtonResponse({ key: { remoteJid: 'x' }, message: { conversation: 'hi' } })).toBeNull();
+    expect(parseNativeButtonResponse({ key: { remoteJid: 'x' }, message: {} })).toBeNull();
+    expect(parseNativeButtonResponse({ key: { remoteJid: 'x' } })).toBeNull();
+    expect(
+      parseNativeButtonResponse({
+        key: { remoteJid: 'x' },
+        message: { interactiveResponseMessage: { nativeFlowResponseMessage: { paramsJson: 'not-json' } } },
+      }),
+    ).toBeNull();
+    expect(
+      parseNativeButtonResponse({
+        key: { remoteJid: 'x' },
+        message: { interactiveResponseMessage: { nativeFlowResponseMessage: { paramsJson: JSON.stringify({ foo: 'bar' }) } } },
+      }),
+    ).toBeNull();
   });
 });

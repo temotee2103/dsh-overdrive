@@ -1,6 +1,7 @@
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
+  generateWAMessageFromContent,
   type WASocket,
   type AnyMessageContent,
 } from '@whiskeysockets/baileys';
@@ -12,7 +13,11 @@ import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from
 
 export interface RawWhatsAppMessage {
   key?: { remoteJid?: string; participant?: string; fromMe?: boolean };
-  message?: { conversation?: string; extendedTextMessage?: { text?: string } } & Record<string, unknown>;
+  message?: {
+    conversation?: string;
+    extendedTextMessage?: { text?: string };
+    interactiveResponseMessage?: { nativeFlowResponseMessage?: { paramsJson?: string } };
+  } & Record<string, unknown>;
   messageType?: string;
 }
 
@@ -45,6 +50,31 @@ export function matchNumberedReply(text: string, buttons: OutboundButton[]): Out
   const n = Number(text.trim());
   if (!Number.isInteger(n) || n < 1 || n > buttons.length) return undefined;
   return buttons[n - 1];
+}
+
+export interface NativeFlowButton {
+  name: string;
+  buttonParamsJson: string;
+}
+
+/** WhatsApp 原生交互按钮：nativeFlowMessage.buttons 数组（{ name: 'quick_reply', buttonParamsJson: JSON({id, display_text}) }）。 */
+export function buildNativeFlowButtons(buttons: OutboundButton[]): NativeFlowButton[] {
+  return buttons.map((b) => ({
+    name: 'quick_reply',
+    buttonParamsJson: JSON.stringify({ id: b.id, display_text: b.label }),
+  }));
+}
+
+/** 解析原生按钮响应：interactiveResponseMessage.nativeFlowResponseMessage.paramsJson 中的 id；非交互/非法 JSON/缺 id 返回 null。 */
+export function parseNativeButtonResponse(raw: RawWhatsAppMessage): string | null {
+  const params = raw.message?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson;
+  if (!params) return null;
+  try {
+    const parsed = JSON.parse(params) as { id?: string };
+    return parsed.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ── 适配器（真实连接，薄层）────────────────────────────────────
@@ -93,9 +123,18 @@ export class WhatsAppAdapter implements Adapter {
 
     sock.ev.on('messages.upsert', ({ messages }) => {
       for (const raw of messages) {
-        const normalized = normalizeWhatsAppMessage(raw as RawWhatsAppMessage);
+        const waRaw = raw as RawWhatsAppMessage;
+        // 原生交互按钮响应：interactiveResponseMessage → 按钮 id（优先于编号回复兜底）
+        const buttonId = parseNativeButtonResponse(waRaw);
+        if (buttonId) {
+          const chatId = waRaw.key?.remoteJid;
+          if (chatId) this.pendingButtons.delete(chatId);
+          this.replyCb?.(buttonId);
+          continue;
+        }
+        const normalized = normalizeWhatsAppMessage(waRaw);
         if (!normalized) continue;
-        // 编号回复：若该 chat 有 pending 按钮且消息是数字，转成按钮点击
+        // 编号回复兜底：若该 chat 有 pending 按钮且消息是数字，转成按钮点击
         const pending = this.pendingButtons.get(normalized.msg.chatId);
         if (pending) {
           const button = matchNumberedReply(normalized.msg.text, pending);
@@ -114,6 +153,26 @@ export class WhatsAppAdapter implements Adapter {
     if (!this.sock) return;
     if (payload.buttons?.length) {
       this.pendingButtons.set(chatId, payload.buttons);
+      // 原生交互按钮优先：Baileys 6.x 的 AnyMessageContent 无 interactive 键，
+      // 以 proto.IMessage（interactiveMessage.nativeFlowMessage）+ relayMessage 发送。
+      const userJid = this.sock.user?.id;
+      if (userJid) {
+        const waMsg = generateWAMessageFromContent(
+          chatId,
+          {
+            interactiveMessage: {
+              body: { text: payload.text },
+              nativeFlowMessage: { buttons: buildNativeFlowButtons(payload.buttons) },
+            },
+          },
+          { userJid },
+        );
+        if (waMsg.message) {
+          await this.sock.relayMessage(chatId, waMsg.message, { messageId: waMsg.key.id ?? undefined });
+          return;
+        }
+      }
+      // 兜底：连接未就绪（无 userJid）或生成失败时退回编号文本方案
       const text = buildNumberedReply(payload.text, payload.buttons);
       await this.sock.sendMessage(chatId, { text } satisfies AnyMessageContent);
       return;
