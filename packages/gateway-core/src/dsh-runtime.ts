@@ -179,9 +179,13 @@ export function createDshRuntime(ctx: Context, opts: DshRuntimeOptions = {}): Ds
     },
 
     async spawnSubagent(req) {
-      const subagents = (ctx as unknown as { subagents?: { start: (provider: string, request: unknown) => Promise<unknown> } }).subagents;
+      // 用 ctx.get 访问（inject 之外的服务必须 get，直接取属性会抛
+      // "cannot get property without inject"——真机验证发现的 bug）。
+      const subagents = (ctx as unknown as { get?: (key: string) => unknown }).get?.('subagents') as
+        | { start?: (provider: string, request: unknown) => Promise<unknown> }
+        | undefined;
       const taskId = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      if (!subagents) throw new Error('subagents 服务不可用（部署未安装 provider）');
+      if (!subagents?.start) throw new Error('subagents 服务不可用（部署未安装 provider）');
       await subagents.start('spawn', {
         label: req.label,
         prompt: [{ type: 'text', text: req.prompt }],

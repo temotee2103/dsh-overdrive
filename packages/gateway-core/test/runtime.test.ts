@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDshRuntime, type DshRuntime } from '../src/dsh-runtime.js';
 
-/** 最小可用的 Cordis ctx 替身：agents(create/resume) + on(event) + subagents。 */
+/** 最小可用的 Cordis ctx 替身：agents(create/resume) + on(event) + get(subagents)。 */
 function fakeCtx(overrides: Record<string, unknown> = {}) {
   const created: Array<Record<string, unknown>> = [];
   const resumed: Array<Record<string, unknown>> = [];
@@ -14,7 +14,7 @@ function fakeCtx(overrides: Record<string, unknown> = {}) {
         resume: async () => { throw new Error('not persisted'); },
       },
       on: (event: string, cb: (payload: unknown, ...rest: unknown[]) => unknown) => { handlers.set(event, cb); },
-      subagents: { start: async () => ({}) },
+      get: (key: string) => (key === 'subagents' ? { start: async () => ({}) } : undefined),
       ...overrides,
     } as Parameters<typeof createDshRuntime>[0],
     created,
@@ -71,12 +71,25 @@ describe('createDshRuntime', () => {
       get: (key: string) =>
         key === 'agentDefaultModel'
           ? { currentSelection: () => ({ provider: 'deepseek', model: 'deepseek-chat' }) }
-          : undefined,
+          : key === 'subagents' ? { start: async () => ({}) } : undefined,
     });
     const runtime = createDshRuntime(ctx, {});
     await runtime.ensureAgent('dsh:cli:cli:local');
     expect((created[0].agentOptions as { provider: string }).provider).toBe('deepseek');
     expect((created[0].agentOptions as { model: string }).model).toBe('deepseek-chat');
+  });
+
+  it('spawnSubagent 经 ctx.get(subagents) 调用（不经 inject 的属性访问）', async () => {
+    const started: Array<{ provider: string; request: unknown }> = [];
+    const { ctx } = fakeCtx({
+      get: (key: string) =>
+        key === 'subagents' ? { start: async (provider: string, request: unknown) => { started.push({ provider, request }); } } : undefined,
+    });
+    const runtime = createDshRuntime(ctx, {});
+    const res = await runtime.spawnSubagent({ label: '调研', prompt: '调研竞品' });
+    expect(res.taskId).toMatch(/^sub-/);
+    expect(started[0].provider).toBe('spawn');
+    expect(started[0].request).toMatchObject({ label: '调研', prompt: [{ type: 'text', text: '调研竞品' }] });
   });
 
   it('buildUserMessage 产出 {content, source}', () => {
