@@ -102,6 +102,24 @@ npx @dsh-overdrive/gateway                                 # gateway
 
 First message to your bot? Run `/help` inside the chat. Full options: [docs/quickstart.md](docs/quickstart.md)
 
+## Don't code? Do this.
+
+No terminal skills needed. dsh-overdrive is designed to be **installed by one person, used by everyone**.
+
+1. Ask a tech-savvy friend for **10 minutes**
+2. Send them this:
+
+   **macOS / Linux:**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/temotee2103/dsh-overdrive/main/install.sh | bash
+   ```
+   **Windows:** download [install.ps1](https://raw.githubusercontent.com/temotee2103/dsh-overdrive/main/install.ps1), right-click → "Run with PowerShell" (or double-click)
+
+3. The installer asks 3 questions (API key → platform → bot token) and starts everything for you
+4. From then on **you** just chat: send messages, `/help` for commands, tap **✅ Approve / 🚫 Reject** for dangerous actions
+
+> 中文：不需要会写代码。找懂行的朋友花 10 分钟装好，之后你只需要聊天：发消息、`/help`、危险操作点【同意/拒绝】。
+
 ## Chat commands
 
 | Command | What it does |

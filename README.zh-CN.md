@@ -102,6 +102,24 @@ npx @dsh-overdrive/gateway                                 # 起 gateway
 
 给 bot 发第一条消息后，输入 `/help` 查看全部命令。完整方案见 [docs/quickstart.md](docs/quickstart.md)
 
+## 不会写代码？这样上手
+
+不需要会编程。dsh-overdrive 的设计是：**一个人装好，全家都能用**。
+
+1. 找一位懂行的朋友，花 **10 分钟**
+2. 把下面这条发给他：
+
+   **macOS / Linux：**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/temotee2103/dsh-overdrive/main/install.sh | bash
+   ```
+   **Windows：** 下载 [install.ps1](https://raw.githubusercontent.com/temotee2103/dsh-overdrive/main/install.ps1)，右键 → "使用 PowerShell 运行"（或双击）
+
+3. 安装器只问你 3 个问题（API key → 平台 → bot token），然后自动全部搞定
+4. 之后**你**只需要聊天：发消息、`/help` 看命令、危险操作点 **✅ 同意 / 🚫 拒绝**
+
+> English: No coding needed — have a friend run the 10-minute installer once; afterwards you just chat.
+
 ## 聊天命令
 
 | 命令 | 作用 |
