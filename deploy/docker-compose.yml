@@ -1,0 +1,57 @@
+services:
+  dsh:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["node", "node_modules/@deepseek-ai/dsh/lib/bin.js", "--profile", "web", "--patch", "/app/cordis.smoke.yml", "--port", "3080"]
+    environment:
+      DSH_OVERDRIVE_TOKEN: ${DSH_OVERDRIVE_TOKEN:-dev-token}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    volumes:
+      - dsh-data:/root/.dsh
+    ports:
+      - "3080:3080"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3192/v1/health',{headers:{authorization:'Bearer '+process.env.DSH_OVERDRIVE_TOKEN}}).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    depends_on:
+      dsh:
+        condition: service_healthy
+    environment:
+      DSH_BASE_URL: http://dsh:3192
+      DSH_TOKEN: ${DSH_OVERDRIVE_TOKEN:-dev-token}
+      GATEWAY_ADAPTERS: ${GATEWAY_ADAPTERS:-cli}
+      ALLOWLIST: ${ALLOWLIST:-}
+      WHATSAPP_DATA_DIR: /data/whatsapp
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      DINGTALK_CLIENT_ID: ${DINGTALK_CLIENT_ID:-}
+      DINGTALK_CLIENT_SECRET: ${DINGTALK_CLIENT_SECRET:-}
+      WECOM_CORP_ID: ${WECOM_CORP_ID:-}
+      WECOM_SECRET: ${WECOM_SECRET:-}
+      WECOM_AGENT_ID: ${WECOM_AGENT_ID:-}
+      WECOM_TOKEN: ${WECOM_TOKEN:-}
+      WECOM_ENCODING_AES_KEY: ${WECOM_ENCODING_AES_KEY:-}
+      WECOM_CALLBACK_PORT: "3193"
+      GATEWAY_CONSOLE_PORT: "3190"
+    volumes:
+      - gateway-data:/data
+      - dsh-data:/root/.dsh:ro
+    ports:
+      - "3190:3190"
+      - "3193:3193"
+
+volumes:
+  dsh-data:
+  gateway-data:
