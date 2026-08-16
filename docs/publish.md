@@ -1,20 +1,22 @@
-# npm 发布步骤（dsh-overdrive）
+# npm 发布（dsh-overdrive）
 
-## 前置
+## 状态：✅ 已发布 v0.1.0（2026-08-16）
 
-- npm 账号已登录：`npm login`
-- `@dsh-overdrive/*` scope 发布权限（org 或 public scope）
-- 版本统一：`npm version patch -w @dsh-overdrive/sdk -w @dsh-overdrive/gateway-core -w @dsh-overdrive/gateway`（或手动统一各包 version）
+- `@dsh-overdrive/sdk@0.1.0`
+- `@dsh-overdrive/gateway-core@0.1.0`
+- `@dsh-overdrive/gateway@0.1.0`
 
-## 发布顺序（依赖方向：sdk → gateway-core → gateway）
+## 更新版本（发新版时）
 
 ```bash
-npm publish -w @dsh-overdrive/sdk
+npm version patch -w @dsh-overdrive/sdk -w @dsh-overdrive/gateway-core -w @dsh-overdrive/gateway
+npm publish -w @dsh-overdrive/sdk      # 依赖顺序：sdk → gateway-core → gateway
 npm publish -w @dsh-overdrive/gateway-core
 npm publish -w @dsh-overdrive/gateway
 ```
 
-> `packages/mock-dsh` 仅开发用，不发布（如发布需同样补元数据）。
+> 认证：仓库根 `.npmrc` 写 `//registry.npmjs.org/:_authToken=npm_xxx`（用完即删，勿提交）。
+> `packages/mock-dsh` 仅开发用，不发布。
 
 ## 安装到 DSH
 
