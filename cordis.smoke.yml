@@ -1,0 +1,9 @@
+- insert:
+    - id: overdrive-gateway-core
+      # Windows 上 dsh loader 只接受 file:// URL（ERR_UNSUPPORTED_ESM_URL_SCHEME）。
+      # 换机器执行时替换为对应仓库绝对路径的 file:// URL。
+      name: 'file:///C:/Users/Temo%20Tee/AppData/Roaming/TRAE%20SOLO/ModularData/ai-agent/work-mode-projects/6a81934bad0b9d1268fe198a/packages/gateway-core/dist/index.js'
+      config:
+        token: !!js process.env.DSH_OVERDRIVE_TOKEN
+        port: 3192
+        sessionPrefix: dsh
