@@ -67,6 +67,7 @@ export class SlackAdapter implements Adapter {
   readonly id = 'slack';
   // 解构出的 App 只有值绑定（无类型绑定），实例类型需用 InstanceType<typeof App>
   private readonly app: InstanceType<typeof App>;
+  private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
 
@@ -86,6 +87,7 @@ export class SlackAdapter implements Adapter {
       await respond({ text: '处理中…', replace_original: false }).catch(() => undefined);
     });
     await this.app.start(0); // Socket Mode 不需要端口；start(0) 仅建立连接
+    this.connected = true;
     console.log('[slack] 已连接 Slack（Socket Mode）');
   }
 
@@ -99,4 +101,5 @@ export class SlackAdapter implements Adapter {
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
   onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  status(): { connected: boolean } { return { connected: this.connected }; }
 }

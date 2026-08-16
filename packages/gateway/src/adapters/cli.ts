@@ -32,4 +32,6 @@ export class CliAdapter implements Adapter {
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
   onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  /** CLI 是本地进程内适配器：恒为已连接。 */
+  status(): { connected: boolean } { return { connected: true }; }
 }

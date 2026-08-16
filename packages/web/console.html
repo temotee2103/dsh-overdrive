@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>dsh-overdrive 控制台</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; background: #0f1115; color: #e6e6e6; }
+  h1 { font-size: 20px; }
+  .card { background: #1a1d24; border-radius: 10px; padding: 16px; margin: 12px 0; }
+  .ok { color: #4ade80; } .bad { color: #f87171; } .dim { color: #9ca3af; }
+</style>
+</head>
+<body>
+  <h1>dsh-overdrive 控制台</h1>
+  <div class="card"><strong>DSH</strong>：<span id="dsh">加载中…</span></div>
+  <div class="card"><strong>适配器</strong><ul id="adapters"></ul></div>
+  <script>
+    async function refresh() {
+      try {
+        const r = await fetch('/api/status');
+        const s = await r.json();
+        document.getElementById('dsh').innerHTML =
+          s.dsh.status === 'ok'
+            ? `<span class="ok">● ${s.dsh.status}（v${s.version}）</span>`
+            : `<span class="bad">● ${s.dsh.error ?? 'unknown'}</span>`;
+        const ul = document.getElementById('adapters');
+        ul.innerHTML = '';
+        for (const a of s.adapters) {
+          const li = document.createElement('li');
+          li.textContent = `${a.id}: ${a.connected === null ? '未知' : a.connected ? '已连接' : '未连接'}`;
+          li.className = a.connected === true ? 'ok' : a.connected === false ? 'bad' : 'dim';
+          ul.appendChild(li);
+        }
+      } catch (e) {
+        document.getElementById('dsh').innerHTML = `<span class="bad">控制台不可达：${e}</span>`;
+      }
+    }
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

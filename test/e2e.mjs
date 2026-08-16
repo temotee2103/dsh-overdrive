@@ -45,11 +45,12 @@ const mock = spawnAnd('mock', ['packages/mock-dsh/dist/index.js', '--port', Stri
 try {
   await waitHealth(`http://127.0.0.1:${PORT}`);
 
-  // 2) 起 gateway（CLI 适配器）
+  // 2) 起 gateway（CLI 适配器）；GATEWAY_CONSOLE_PORT=0 让系统分配空闲端口，避免多实例/本机端口冲突
   const gw = spawnAnd('gateway', ['packages/gateway/dist/index.js'], {
     DSH_BASE_URL: `http://127.0.0.1:${PORT}`,
     DSH_TOKEN: TOKEN,
     ALLOWLIST: 'cli:cli:local',
+    GATEWAY_CONSOLE_PORT: '0',
   });
   try {
     await waitText(gw, '[gateway] 就绪');
@@ -74,6 +75,7 @@ try {
       DSH_BASE_URL: `http://127.0.0.1:${PORT}`,
       DSH_TOKEN: TOKEN,
       ALLOWLIST: 'cli:somebody:else', // 不匹配 cli:cli:local
+      GATEWAY_CONSOLE_PORT: '0',
     });
     try {
       await waitText(gw2, '[gateway] 就绪');

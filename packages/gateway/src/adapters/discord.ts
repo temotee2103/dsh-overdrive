@@ -62,6 +62,7 @@ export interface DiscordAdapterOptions { token: string; }
 export class DiscordAdapter implements Adapter {
   readonly id = 'discord';
   private readonly client: Client;
+  private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
 
@@ -79,7 +80,7 @@ export class DiscordAdapter implements Adapter {
   }
 
   async connect(): Promise<void> {
-    this.client.once(Events.ClientReady, () => console.log('[discord] 已连接 Discord'));
+    this.client.once(Events.ClientReady, () => { this.connected = true; console.log('[discord] 已连接 Discord'); });
     this.client.on(Events.MessageCreate, (m: Message) => {
       const msg = normalizeDiscordMessage(m as never);
       if (msg) this.messageCb?.(msg);
@@ -112,4 +113,5 @@ export class DiscordAdapter implements Adapter {
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
   onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  status(): { connected: boolean } { return { connected: this.connected }; }
 }

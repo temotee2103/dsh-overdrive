@@ -57,6 +57,7 @@ export class FeishuAdapter implements Adapter {
   readonly id = 'feishu';
   private readonly client: InstanceType<typeof Client>;
   private ws?: InstanceType<typeof WSClient>;
+  private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
   private readonly pendingButtons = new Map<string, OutboundButton[]>();
@@ -95,6 +96,7 @@ export class FeishuAdapter implements Adapter {
       loggerLevel: lark.LoggerLevel.error,
     });
     await this.ws.start({ eventDispatcher: dispatcher });
+    this.connected = true;
     console.log('[feishu] 飞书长连接已建立');
   }
 
@@ -118,11 +120,7 @@ export class FeishuAdapter implements Adapter {
     }
   }
 
-  onMessage(cb: (msg: NormalizedMessage) => void): void {
-    this.messageCb = cb;
-  }
-
-  onReply(cb: (buttonId: string) => void): void {
-    this.replyCb = cb;
-  }
+  onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
+  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  status(): { connected: boolean } { return { connected: this.connected }; }
 }

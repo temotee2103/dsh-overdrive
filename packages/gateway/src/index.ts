@@ -5,6 +5,7 @@ import { adapterEnvFromProcess, createAdapter, parseAdapterIds } from './config.
 import { CliAdapter } from './adapters/cli.js';
 import { parseCommand, HELP_TEXT, type ParsedCommand } from './commands.js';
 import { TrajectoryAggregator, formatTrajectorySummary } from './trajectory.js';
+import { createStatusServer } from './status.js';
 
 /**
  * message.delta → 打字指示去重：同一 turn 内首个 delta 触发一次 typing，
@@ -194,6 +195,11 @@ async function main(): Promise<void> {
     await wireAdapter(adapter, client, { allowlist });
     console.log(`[gateway] ${adapter.id} 适配器已就绪`);
   }
+
+  const consolePort = Number(process.env.GATEWAY_CONSOLE_PORT ?? 3190);
+  const status = createStatusServer({ adapters, client, version: '0.1.0' });
+  await status.listen(consolePort);
+  console.log(`[gateway] 控制台 http://0.0.0.0:${consolePort}/`);
 
   process.stdout.write(`[gateway] 就绪（适配器: ${adapterIds.join(', ')}）。Ctrl+C 退出。\n`);
 }

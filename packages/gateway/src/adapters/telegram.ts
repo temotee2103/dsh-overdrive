@@ -55,6 +55,7 @@ export class TelegramAdapter implements Adapter {
   readonly id = 'telegram';
   private readonly bot: Bot;
   private readonly token: string;
+  private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
 
@@ -65,6 +66,7 @@ export class TelegramAdapter implements Adapter {
 
   async connect(): Promise<void> {
     await this.bot.api.getMe(); // 校验 token
+    this.connected = true;
     this.bot.on('message', (ctx) => {
       void this.handleMessage(ctx as never);
     });
@@ -105,4 +107,5 @@ export class TelegramAdapter implements Adapter {
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
   onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  status(): { connected: boolean } { return { connected: this.connected }; }
 }

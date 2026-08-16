@@ -95,6 +95,7 @@ export interface WeComAdapterOptions {
 export class WeComAdapter implements Adapter {
   readonly id = 'wecom';
   private server?: ReturnType<typeof createServer>;
+  private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
   private readonly pendingButtons = new Map<string, OutboundButton[]>();
@@ -104,6 +105,7 @@ export class WeComAdapter implements Adapter {
   async connect(): Promise<void> {
     this.server = createServer((req, res) => void this.route(req, res));
     await new Promise<void>((resolve) => this.server!.listen(this.opts.callbackPort, '0.0.0.0', () => resolve()));
+    this.connected = true;
     console.log(`[wecom] 回调服务器已启动 http://0.0.0.0:${this.opts.callbackPort}（需公网可达并配置为企业微信回调 URL）`);
   }
 
@@ -175,6 +177,7 @@ export class WeComAdapter implements Adapter {
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
   onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  status(): { connected: boolean } { return { connected: this.connected }; }
 }
 
 async function readBody(req: IncomingMessage): Promise<string> {

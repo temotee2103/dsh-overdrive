@@ -126,6 +126,7 @@ export interface WhatsAppAdapterOptions {
 export class WhatsAppAdapter implements Adapter {
   readonly id = 'whatsapp';
   private sock?: WASocket;
+  private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
   /** chatId → 当前 pending 按钮（编号回复 → 按钮 id） */
@@ -149,8 +150,12 @@ export class WhatsAppAdapter implements Adapter {
         qrcode.generate(update.qr, { small: true });
         console.log('[whatsapp] 请用 WhatsApp 扫上方二维码完成配对（重启应用可重新生成）');
       }
-      if (update.connection === 'open') console.log('[whatsapp] 已连接 WhatsApp');
+      if (update.connection === 'open') {
+        this.connected = true;
+        console.log('[whatsapp] 已连接 WhatsApp');
+      }
       if (update.connection === 'close') {
+        this.connected = false;
         const status = (update.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
         if (status === DisconnectReason.loggedOut) {
           console.error('[whatsapp] 已登出：删除 data/whatsapp 目录后重启可重新扫码');
@@ -222,4 +227,5 @@ export class WhatsAppAdapter implements Adapter {
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
   onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  status(): { connected: boolean } { return { connected: this.connected }; }
 }

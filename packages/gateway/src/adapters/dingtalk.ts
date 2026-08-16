@@ -51,6 +51,7 @@ export interface DingTalkAdapterOptions {
 export class DingTalkAdapter implements Adapter {
   readonly id = 'dingtalk';
   private client?: DWClient;
+  private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
   private readonly pendingButtons = new Map<string, OutboundButton[]>();
@@ -84,6 +85,7 @@ export class DingTalkAdapter implements Adapter {
       this.messageCb?.({ chatId: parsed.chatId, userId: parsed.userId, text: parsed.text });
     });
     await client.connect();
+    this.connected = true;
     console.log('[dingtalk] 钉钉 Stream 已连接');
   }
 
@@ -103,11 +105,7 @@ export class DingTalkAdapter implements Adapter {
     }
   }
 
-  onMessage(cb: (msg: NormalizedMessage) => void): void {
-    this.messageCb = cb;
-  }
-
-  onReply(cb: (buttonId: string) => void): void {
-    this.replyCb = cb;
-  }
+  onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
+  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  status(): { connected: boolean } { return { connected: this.connected }; }
 }
