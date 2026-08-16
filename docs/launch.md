@@ -1,5 +1,24 @@
 # 渠道发布清单（M5）
 
+## 已执行（2026-08-16）
+
+- ✅ GitHub 仓库公开（temotee2103/dsh-overdrive，57+ commit，CI 全绿）
+- ✅ `dsh-plugin` topic + 10 个相关 topic
+- ✅ npm 三包发布（sdk / gateway-core / gateway @ 0.1.1，英文描述）
+- ✅ DSH 官方 Discussion 发帖：https://github.com/deepseek-ai/deepseek-harness/discussions/2546（"Show Your Plugins!"）
+- ✅ awesome-dsh-plugin PR #1191（4838⭐）：https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1191
+- ✅ awesome-deepseek-harness PR #321（589⭐）：https://github.com/0xsline/awesome-deepseek-harness/pull/321
+- ✅ 双语 README + 自带动画 SVG 演示（免录屏）
+- ✅ 发布稿草稿：`docs/launch-hn.md`（Show HN）、`docs/launch-cn.md`（CSDN/掘金/知乎）
+
+## 待执行
+
+- [ ] 粘贴发布 `docs/launch-hn.md`（Show HN）
+- [ ] 粘贴发布 `docs/launch-cn.md`（CSDN / 掘金 / 知乎）
+- [ ] 录制真实演示视频（可选，动画 SVG 已可作素材）
+- [ ] Discord 社区发帖（需登录 Discord）
+- [ ] 全部密钥作废/轮换（GitHub PAT×2、npm token×2、DeepSeek key、Telegram token）
+
 ## 发布前检查
 
 - [ ] `npm run build && npx vitest run && npm run e2e` 全绿（CI 同步）
