@@ -16,5 +16,14 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
+  },
+  "license": "MIT",
+  "description": "dsh-overdrive: 让 DeepSeek Harness 变成多平台聊天智能体",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/<owner>/dsh-overdrive.git"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

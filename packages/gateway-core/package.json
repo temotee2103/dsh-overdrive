@@ -2,7 +2,9 @@
   "name": "@dsh-overdrive/gateway-core",
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "build": "tsc" },
+  "scripts": {
+    "build": "tsc"
+  },
   "dependencies": {
     "@dsh-overdrive/sdk": "0.1.0",
     "@deepseek-ai/cordis": "^4.0.1",
@@ -10,5 +12,19 @@
     "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-session": "^0.1.0-rc.6"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "license": "MIT",
+  "description": "dsh-overdrive: DeepSeek Harness 插件（多平台桥接核心）",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/<owner>/dsh-overdrive.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
 }

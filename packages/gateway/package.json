@@ -2,7 +2,9 @@
   "name": "@dsh-overdrive/gateway",
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "build": "tsc" },
+  "scripts": {
+    "build": "tsc"
+  },
   "dependencies": {
     "@dsh-overdrive/sdk": "0.1.0",
     "@larksuiteoapi/node-sdk": "^1.50.0",
@@ -16,5 +18,14 @@
   },
   "devDependencies": {
     "@types/qrcode-terminal": "^0.12.2"
+  },
+  "license": "MIT",
+  "description": "dsh-overdrive: 多平台消息网关（WhatsApp/Telegram/Discord/Slack/飞书/钉钉/企业微信）",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/<owner>/dsh-overdrive.git"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

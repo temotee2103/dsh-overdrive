@@ -1,0 +1,8 @@
+- insert:
+    - id: overdrive-gateway-core
+      name: '@dsh-overdrive/gateway-core'
+      config:
+        token: !!js process.env.DSH_OVERDRIVE_TOKEN
+        port: 3192
+        sessionPrefix: dsh
+        approvalTimeoutMs: 120000

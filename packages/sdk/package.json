@@ -5,9 +5,27 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
-  "scripts": { "build": "tsc" },
-  "dependencies": { "ws": "^8.18.0" },
-  "devDependencies": { "@types/ws": "^8.5.12" }
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.12"
+  },
+  "license": "MIT",
+  "description": "dsh-overdrive: Remote Session Driver 协议（类型/服务端/客户端）",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/<owner>/dsh-overdrive.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
