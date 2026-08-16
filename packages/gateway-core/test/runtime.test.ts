@@ -66,6 +66,19 @@ describe('createDshRuntime', () => {
     expect(created).toHaveLength(2);
   });
 
+  it('无显式 model 时从 agentDefaultModel.currentSelection() 解析默认模型', async () => {
+    const { ctx, created } = fakeCtx({
+      get: (key: string) =>
+        key === 'agentDefaultModel'
+          ? { currentSelection: () => ({ provider: 'deepseek', model: 'deepseek-chat' }) }
+          : undefined,
+    });
+    const runtime = createDshRuntime(ctx, {});
+    await runtime.ensureAgent('dsh:cli:cli:local');
+    expect((created[0].agentOptions as { provider: string }).provider).toBe('deepseek');
+    expect((created[0].agentOptions as { model: string }).model).toBe('deepseek-chat');
+  });
+
   it('buildUserMessage 产出 {content, source}', () => {
     const { ctx } = fakeCtx();
     const runtime = createDshRuntime(ctx, {});

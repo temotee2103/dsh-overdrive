@@ -1,5 +1,10 @@
 import type { Context } from '@deepseek-ai/cordis';
-import type { Agent } from '@deepseek-ai/dsh-agent';
+import {
+  installModelSelection,
+  type Agent,
+  type ModelSelection,
+  type ModelSelectionRef,
+} from '@deepseek-ai/dsh-agent';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { DshSessionEvent } from './derive.js';
@@ -60,15 +65,32 @@ export function createDshRuntime(ctx: Context, opts: DshRuntimeOptions = {}): Ds
   const prefix = opts.sessionPrefix ?? 'dsh';
   const live = new Map<string, AgentLike>();
 
+  /** 解析模型选择：显式配置优先，否则用部署默认模型（agentDefaultModel，Web UI 配置的模型路由）。 */
+  function resolveModelSelection(): ModelSelection | undefined {
+    if (opts.model?.provider && opts.model?.model) {
+      return { provider: opts.model.provider, model: opts.model.model };
+    }
+    const defaultModel = (ctx as unknown as { get?: (key: string) => unknown }).get?.('agentDefaultModel') as
+      | { currentSelection?: () => ModelSelection }
+      | undefined;
+    if (defaultModel?.currentSelection) {
+      const selection = defaultModel.currentSelection();
+      if (selection) return selection;
+    }
+    return undefined;
+  }
+
   async function ensureAgent(sessionId: string): Promise<AgentLike> {
     const existing = live.get(sessionId);
     if (existing) return existing;
 
-    const agentOptions = opts.model
-      ? { provider: opts.model.provider, model: opts.model.model }
-      : undefined;
+    const selection = resolveModelSelection();
+    const agentOptions = selection === undefined ? undefined : { provider: selection.provider, model: selection.model };
+    const selectionRef: ModelSelectionRef = { current: selection, assembled: undefined };
 
     const setup = async (agentCtx: Context): Promise<void> => {
+      // 模型选择必须安装，否则 loop 没有 provider/model 路由（M0 报告 §7.1）。
+      if (selection !== undefined) installModelSelection(agentCtx, selectionRef);
       // 挂载部署默认 agent preset（与 Web 创建的会话同款工具集），失败不阻断。
       const presets = (agentCtx as unknown as { get?: (key: string) => unknown }).get?.('agentPresets');
       if (presets && typeof presets === 'object' && 'mount' in presets) {
