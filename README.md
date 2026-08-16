@@ -13,7 +13,12 @@
 - ✅ **M2b：国际平台适配器**（WhatsApp 扫码 / Telegram / Discord / Slack），多适配器并发（`GATEWAY_ADAPTERS`）
 - ✅ **M3：中文平台适配器**（飞书 WSClient / 钉钉 Stream / 企业微信回调）
 - ✅ **M4：爆款特性**（/trace 轨迹摘要、/task /cron 命令面、/new 重置、delta 打字指示、图片收发、WhatsApp 原生审批按钮）
+- ✅ **M5：发布件**（docker-compose 一键部署 / Web 控制台 / MIT+CI / npm 分发 / 演示脚本）
 - 📋 平台手工验收清单：`docs/smoke-platforms.md`
+
+## 快速开始
+
+- 📦 [快速开始 quickstart.md](docs/quickstart.md) ｜ 🎬 [演示脚本 demo.md](docs/demo.md) ｜ 📣 [渠道清单 launch.md](docs/launch.md) ｜ 📤 [npm 发布 publish.md](docs/publish.md)
 
 ## 文档
 
