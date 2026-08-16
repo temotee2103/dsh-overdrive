@@ -39,7 +39,10 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}) {
   bridge.start();
 
   const ready = server.listen(port).then((p) => ({ port: p }));
-  ctx.effect(() => () => server.close());
+  ctx.effect(() => () => {
+    bridge.dispose(); // 清理 cron 调度循环定时器
+    void server.close();
+  });
 
   console.log(`[dsh-overdrive-gateway-core] loaded, protocol server on 127.0.0.1:${port} (token: ${token === 'dev-token' ? 'dev-token' : '***'})`);
   return { server, ready, bridge };

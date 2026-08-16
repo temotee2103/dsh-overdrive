@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createDshRuntime, type DshRuntime } from '../src/dsh-runtime.js';
 
 /** 最小可用的 Cordis ctx 替身：agents(create/resume) + on(event) + subagents。 */
@@ -72,6 +72,25 @@ describe('createDshRuntime', () => {
     const msg = runtime.buildUserMessage('hi') as { content: unknown[]; source: { kind: string } };
     expect(msg.content).toEqual([{ type: 'text', text: 'hi' }]);
     expect(msg.source.kind).toBe('user');
+  });
+
+  it('buildUserMessage 带 image media 降级为纯文本（dsh-llm 不支持 URL 图片 block）', () => {
+    const { ctx } = fakeCtx();
+    const runtime = createDshRuntime(ctx, {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const msg = runtime.buildUserMessage('看图', { kind: 'image', url: 'https://x/y.png' }) as { content: Array<{ type: string }> };
+    expect(msg.content).toEqual([{ type: 'text', text: '看图' }]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('buildUserMessage 带 voice media 时文本末尾追加降级提示', () => {
+    const { ctx } = fakeCtx();
+    const runtime = createDshRuntime(ctx, {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const msg = runtime.buildUserMessage('', { kind: 'voice', url: 'https://x/v.ogg' }) as { content: Array<{ type: string; text: string }> };
+    expect(msg.content).toEqual([{ type: 'text', text: '\n[收到语音消息，暂不支持转写]' }]);
+    warn.mockRestore();
   });
 
   it('onSessionEvent 只回调本网关前缀的会话', () => {

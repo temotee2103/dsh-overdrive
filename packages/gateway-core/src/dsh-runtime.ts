@@ -6,6 +6,14 @@ import type { DshSessionEvent } from './derive.js';
 
 export type ApprovalOutcome = 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable';
 
+/** 协议层透传的媒体引用（与 SDK SendMessageRequest.media 同构）。 */
+export interface MediaRef {
+  kind: 'voice' | 'image' | 'video' | 'file';
+  url?: string;
+  mime?: string;
+  caption?: string;
+}
+
 /** DSH approval/request 载荷的结构化外形（harness-lark 同款声明，见其 feishu-approval.ts）。 */
 export interface ApprovalRequestLike {
   readonly agent: { session: { header: { id: string } } };
@@ -26,7 +34,7 @@ export interface AgentLike {
 /** gateway-core 桥接依赖的 DSH 最小面。测试用 Fake 实现，运行时由 ctx 提供。 */
 export interface DshRuntime {
   ensureAgent(sessionId: string): Promise<AgentLike>;
-  buildUserMessage(text: string): unknown;
+  buildUserMessage(text: string, media?: MediaRef): unknown;
   onSessionEvent(cb: (sessionId: string, event: DshSessionEvent) => void): void;
   onApprovalRequest(
     cb: (req: ApprovalRequestLike, next: () => Promise<ApprovalOutcome>) => Promise<ApprovalOutcome>,
@@ -112,8 +120,17 @@ export function createDshRuntime(ctx: Context, opts: DshRuntimeOptions = {}): Ds
     ensureAgent,
     destroyAgent,
 
-    buildUserMessage(text) {
-      return createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } });
+    buildUserMessage(text, media) {
+      const content: Array<{ type: 'text'; text: string }> = [{ type: 'text', text }];
+      if (media?.kind === 'image' && media.url) {
+        // dsh-llm rc.6 的 ImageBlock 需要持久 attachment 引用（ctx.attachments.saveImage 落盘真实字节），
+        // 仅凭 URL 无法构造合法 content block → 按计划降级为纯文本 + warn（多模态接入留 M5 后）。
+        console.warn(`[gateway-core] 图片消息降级为文本（ImageBlock 需 attachment 引用，URL 直连暂不支持）: ${media.url}`);
+      } else if (media?.kind === 'voice') {
+        content[0] = { type: 'text', text: `${text}\n[收到语音消息，暂不支持转写]` };
+        console.warn('[gateway-core] 收到语音消息，暂不支持转写；请发文字');
+      }
+      return createUserMessage({ content, source: { kind: 'user' } });
     },
 
     onSessionEvent(cb) {

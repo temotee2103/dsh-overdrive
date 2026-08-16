@@ -2,13 +2,13 @@ import { createServer, type Server as HttpServer, type IncomingMessage, type Ser
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, WebSocket } from 'ws';
 import type {
-  HealthResponse, ResetSessionResponse, ResolveApprovalResponse, SendMessageResponse, ServerEvent,
+  HealthResponse, ResetSessionResponse, ResolveApprovalResponse, SendMessageRequest, SendMessageResponse, ServerEvent,
   TaskResponse, UpsertSessionResponse,
 } from './protocol.js';
 
 export interface ProtocolHandlers {
   upsertSession(req: { platform: string; channel: string; user: string }): Promise<UpsertSessionResponse>;
-  sendMessage(sessionId: string, req: { text: string; media?: { kind: string; url?: string; mime?: string; caption?: string } }): Promise<SendMessageResponse>;
+  sendMessage(sessionId: string, req: SendMessageRequest): Promise<SendMessageResponse>;
   resolveApproval(reqId: string, decision: 'approve' | 'reject'): Promise<ResolveApprovalResponse>;
   createTask(req: { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string }): Promise<TaskResponse>;
   resetSession(sessionId: string): Promise<ResetSessionResponse>;
@@ -106,7 +106,7 @@ export class ProtocolServer {
         return;
       }
       if (req.method === 'POST' && parts[0] === 'v1' && parts[1] === 'sessions' && parts[2] && parts[3] === 'messages') {
-        const body = (await readJson(req)) as { text: string; media?: { kind: string; url?: string; mime?: string; caption?: string } };
+        const body = (await readJson(req)) as SendMessageRequest;
         send(200, await this.handlers.sendMessage(decodeURIComponent(parts[2]), body));
         return;
       }

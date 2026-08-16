@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { DshBridge } from '../src/bridge.js';
-import type { ApprovalOutcome, ApprovalRequestLike, DshRuntime } from '../src/dsh-runtime.js';
+import type { ApprovalOutcome, ApprovalRequestLike, DshRuntime, MediaRef } from '../src/dsh-runtime.js';
 import { ProtocolServer, type ProtocolHandlers, type ServerEvent } from '@dsh-overdrive/sdk';
 
 const TOKEN = 'test-token';
 
 class FakeRuntime implements DshRuntime {
-  followed: Array<{ sessionId: string; msg: { text: string } }> = [];
+  followed: Array<{ sessionId: string; msg: unknown }> = [];
   ensured = new Set<string>();
   destroyed: string[] = [];
   sessionCb?: (sessionId: string, event: { type: string; data: Record<string, unknown> }) => void;
@@ -17,11 +17,19 @@ class FakeRuntime implements DshRuntime {
     this.ensured.add(sessionId);
     return {
       sessionId,
-      followup: (msg: { text: string }) => this.followed.push({ sessionId, msg }),
+      followup: (msg: unknown) => this.followed.push({ sessionId, msg }),
       inject: () => {},
     };
   }
-  buildUserMessage(text: string) { return { content: [{ type: 'text', text }], source: { kind: 'user' } }; }
+  buildUserMessage(text: string, media?: MediaRef) {
+    return {
+      content: [
+        { type: 'text', text },
+        ...(media?.kind === 'image' && media.url ? [{ type: 'image', url: media.url }] : []),
+      ],
+      source: { kind: 'user' },
+    };
+  }
   onSessionEvent(cb: (sessionId: string, event: { type: string; data: Record<string, unknown> }) => void) { this.sessionCb = cb; }
   onApprovalRequest(cb: (req: ApprovalRequestLike, next: () => Promise<ApprovalOutcome>) => Promise<ApprovalOutcome>) { this.approvalCb = cb; }
   async spawnSubagent(req: { label: string; prompt: string }) { this.subagentCalls.push(req); return { taskId: 'sub-1' }; }
@@ -54,7 +62,7 @@ async function setup(): Promise<{
 
 describe('DshBridge', () => {
   let ctx: Awaited<ReturnType<typeof setup>>;
-  afterEach(async () => { await ctx?.server.close(); });
+  afterEach(async () => { ctx?.bridge.dispose(); await ctx?.server.close(); });
 
   it('upsertSession 确保 agent 存在并返回协议会话键', async () => {
     ctx = await setup();
@@ -106,15 +114,54 @@ describe('DshBridge', () => {
     await expect(outcomePromise).resolves.toBe('rejected');
   });
 
-  it('createTask(subagent) 委托 runtime.spawnSubagent；cron 抛错', async () => {
+  it('createTask(subagent) 委托 runtime.spawnSubagent', async () => {
     ctx = await setup();
     const res = await ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'subagent', prompt: '调研' });
     expect(res.taskId).toBe('sub-1');
     expect(ctx.runtime.subagentCalls[0].prompt).toBe('调研');
+    expect(ctx.runtime.subagentCalls[0].label).toBe('调研');
+  });
 
+  it('createTask(cron) 注册成功且返回 cron- taskId', async () => {
+    ctx = await setup();
+    const res = await ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '每日汇报', schedule: '0 8 * * *' });
+    expect(res.taskId).toMatch(/^cron-/);
+  });
+
+  it('createTask(cron) 非法 schedule 抛错（缺字段 / 越界）', async () => {
+    ctx = await setup();
     await expect(
-      ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '每日', schedule: '0 8 * * *' }),
+      ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '汇报', schedule: '0 8 *' }),
     ).rejects.toThrow(/cron/);
+    await expect(
+      ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '汇报', schedule: '60 8 * * *' }),
+    ).rejects.toThrow(/cron/);
+  });
+
+  it('createTask(cron) 缺 schedule 抛错', async () => {
+    ctx = await setup();
+    await expect(
+      ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '汇报' }),
+    ).rejects.toThrow(/schedule/);
+  });
+
+  it('sendMessage 带 media 时 buildUserMessage 收到 media（image → content block）', async () => {
+    ctx = await setup();
+    await ctx.handlers.sendMessage!('cli:cli:local', { text: '看图', media: { kind: 'image', url: 'https://x/y.png' } });
+    expect(ctx.runtime.followed).toHaveLength(1);
+    expect(ctx.runtime.followed[0].msg).toMatchObject({
+      content: [
+        { type: 'text', text: '看图' },
+        { type: 'image', url: 'https://x/y.png' },
+      ],
+      source: { kind: 'user' },
+    });
+  });
+
+  it('sendMessage 带 voice media 时透传（降级文本由 runtime 负责）', async () => {
+    ctx = await setup();
+    await ctx.handlers.sendMessage!('cli:cli:local', { text: '', media: { kind: 'voice', url: 'https://x/v.ogg' } });
+    expect(ctx.runtime.followed[0].msg).toMatchObject({ content: [{ type: 'text', text: '' }] });
   });
 
   it('resetSession 调 runtime.destroyAgent（协议会话键 → dsh 会话 id）', async () => {
