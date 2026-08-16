@@ -1,7 +1,7 @@
 # dsh-overdrive 设计文档
 
 - 日期：2026-08-16
-- 状态：已获用户批准（2026-08-16）
+- 状态：已获用户批准（2026-08-16）；M0 调研修订（D1–D6）于同日合入（见附录 A）
 - 定位：让 DeepSeek Harness (DSH) 变成"超越 Hermes / OpenClaw"的多平台聊天智能体，主打开源影响力
 
 ---
@@ -30,7 +30,7 @@ DSH（DeepSeek Harness）v0.1 于 2026-08-13 开源，MIT 协议，核心哲学�
 ## 3. 命名与仓库
 
 - 项目名：**dsh-overdrive**（"超频/超越"，呼应碾压 Hermes/OpenClaw 的定位）
-- 仓库结构（monorepo，pnpm workspace）：
+- 仓库结构（monorepo，npm workspaces）：
   - `packages/gateway-core/` — DSH 插件（npm 包名 `@dsh-overdrive/gateway-core`）
   - `packages/gateway/` — 独立多平台 Gateway 进程（npm 包名 `@dsh-overdrive/gateway`）
   - `packages/sdk/` — 共享协议类型 + 两端 client
@@ -67,7 +67,7 @@ DSH（DeepSeek Harness）v0.1 于 2026-08-13 开源，MIT 协议，核心哲学�
 
 | 组件 | 职责 | 技术要点 |
 |---|---|---|
-| `gateway-core`（DSH 插件） | 暴露 Remote Session Driver API；把 DSH 的会话/轨迹/审批/子任务桥出去 | TypeScript、Cordis 插件（`apply(ctx)` + `inject: ['sessions','llm','tools',...]`）、内嵌 HTTP/WS server |
+| `gateway-core`（DSH 插件） | 暴露 Remote Session Driver API；把 DSH 的会话/轨迹/审批/子任务桥出去 | TypeScript、Cordis 插件（`apply(ctx, config)` + `inject: ['agents']`）；桥接：`agents.create/resume` + `agent.followup`、`session/event` 订阅、`approval/request` answerer（D5）、`ctx.subagents`；内嵌 HTTP/WS server |
 | `gateway`（独立进程） | 平台适配器 + 会话映射 + 安全 + 控制台 | Node.js；适配器接口 `{ id, connect(), send(), onMessage() }` |
 | `sdk`（共享） | 通信协议类型 + 两端 client | 单一事件 schema，两端共用 |
 | `web`（控制台） | 扫码向导/健康面板/轨迹回放/日志 | 静态页面，由 gateway 托管 |
@@ -88,23 +88,26 @@ DSH（DeepSeek Harness）v0.1 于 2026-08-13 开源，MIT 协议，核心哲学�
 - `POST /v1/sessions` — 按 `platform:channel:user` upsert 会话
 - `POST /v1/sessions/{id}/messages` — 注入用户消息，触发 agent run
 - `POST /v1/approvals/{reqId}/resolve` — 审批确认（同意/拒绝）
-- `POST /v1/tasks` — 触发 subagent / cron 任务
+- `POST /v1/tasks` — 触发 subagent / cron 任务（cron 在 M4 提供）
 - `GET /v1/health` — 健康检查
+
+**会话键映射（D1）**：协议层会话键为 `platform:channel:user`；gateway-core 映射为 DSH 侧 SessionId `dsh:<platform>:<channel>:<user>`（DSH 的 SessionId 是插件自定 branded string，各组件需消毒，避免 `/`、`\`、`..` 等不安全字符）。
 
 ## 7. 数据流（一次对话）
 
 1. WhatsApp 消息 → Baileys → adapter `onMessage`
 2. Gateway 规整（文本/语音/图片）→ 会话键 `platform:channel:user` → 注入 DSH
-3. `gateway-core` 将其转为 DSH 会话新一轮 → agent 开始 run
-4. 轨迹/输出/审批事件 → WS 推回 gateway
+3. `gateway-core` 映射为 DSH 会话 id `dsh:<platform>:<channel>:<user>`（D1），`agents.resume/create` 取会话，`agent.followup(createUserMessage(...))` 注入（新一轮 turn）
+4. agent 运行 → `session/event`（turn/start、assistant/chunk|message、tool/call|result…）→ gateway-core **派生**为协议事件（轨迹由 `tool/call` 等派生，D2）→ WS 推回 gateway
 5. Gateway 翻译为平台动作：文本回消息；轨迹折叠为"思考摘要"卡片；审批变成带【同意/拒绝】按钮的消息
-6. 用户点按钮 → resolve 回传 → agent 继续
+6. 用户点按钮 → resolve 回传 → gateway-core 作为 **approval answerer**（D5）结算 outcome（approve→allowed-once / reject→rejected，D3）→ agent 继续
 
 ## 8. 安全模型（安全底线，默认行为）
 
 - **白名单**：仅允许配置的号码/群/频道 ID 与 agent 对话
 - **默认拒绝**：未白名单即不可用；工具策略默认最小权限
 - **审批超时**：默认拒绝 + 通知（可配置超时）
+- **审批结果词汇（D3）**：协议 approve/reject 二元 → DSH 四态 `allowed-once | rejected | cancelled | unavailable`；`cancelled`（agent 侧中止）与 `unavailable`（无应答方）需感知表达
 - **可追踪**：所有对话与轨迹写 append-only log（复用 DSH session log）
 
 ## 9. 错误处理
@@ -145,12 +148,13 @@ DSH（DeepSeek Harness）v0.1 于 2026-08-13 开源，MIT 协议，核心哲学�
 
 ## 13. 里程碑
 
-- **M0（前置）**：clone DSH 源码 + harness-lark，读透 `sessions`/轨迹/审批的插件接口，验证协议可行性
-- **M1 · 骨架**：monorepo + SDK 协议 + gateway-core 插件雏形 + mock 端到端
-- **M2 · 国际平台**：WhatsApp + Telegram + Discord + Slack 适配器
+- **M0（前置）✅**：clone DSH 源码 + harness-lark，读透插件接口；产出 `docs/interface-report.md`（D1–D6 见附录 A）
+- **M1 · 骨架 ✅**：monorepo + SDK 协议 + gateway-core 插件雏形 + mock 端到端
+- **M2a · 真实桥接 ✅**：gateway-core 接 `ctx.agents` / `session/event` / `approval/request`；真机冒烟通过（插件加载 + health + 事件管道）
+- **M2b · 国际平台 ✅**：WhatsApp / Telegram / Discord / Slack 适配器 + 多适配器并发（待真机凭据验收）
 - **M3 · 中文平台**：飞书 + 钉钉 + 企业微信适配器
-- **M4 · 爆款特性**：轨迹摘要卡片 + 审批按钮 + subagent/cron 聊天命令面 + 语音/图片收发
-- **M5 · 发布**：docker-compose 一键部署 + Web 控制台 + 文档 + 演示视频 + `dsh-plugin` topic、DSH Discord、HN/CSDN 等渠道
+- **M4 · 爆款特性**：轨迹摘要卡片 + WhatsApp 原生交互审批按钮 + subagent/cron 聊天命令面（cron 为 gateway-core 自研调度器，D4）+ 语音/图片收发 + 流式渲染（`message.delta`）
+- **M5 · 发布**：docker-compose 一键部署 + Web 控制台 + npm 发布（`dsh.bundle.patch` 分发，D6）+ GitHub 仓库/License/CI + 文档/演示视频 + `dsh-plugin` topic、DSH Discord、HN/CSDN 等渠道
 
 ## 14. 风险与缓解
 
@@ -168,3 +172,16 @@ DSH（DeepSeek Harness）v0.1 于 2026-08-13 开源，MIT 协议，核心哲学�
 - 不做多租户 SaaS 控制面（首发自托管）
 - 不做语音合成/主动外呼（首发语音只做接收与转写）
 - 不做模型计费/额度管理
+
+---
+
+## 附录 A：M0 调研对设计的修订（D1–D6，2026-08-16 合入）
+
+来源：`docs/interface-report.md` §7。**代码已按下列修订实现**，本附录保证文档与实现一致。
+
+- **D1 会话键**：协议层用 `platform:channel:user`；DSH 侧 SessionId 由插件自定，映射为 `dsh:<platform>:<channel>:<user>`（各组件消毒，避免 `/`、`\`、`..`）。
+- **D2 轨迹派生**：DSH 无现成"轨迹 step"事件；`trajectory.step` 由 `session/event` 派生（`tool/call` → tool、`assistant/*` → thought）。
+- **D3 审批词汇**：协议 `approve/reject` 二元 → DSH 四态 `allowed-once/rejected/cancelled/unavailable`；`cancelled` 由 `req.signal` abort 表达。
+- **D4 cron 自研**：DSH 无内置调度接口；cron 由 gateway-core 自带调度器 + `followup`/`inject` 注入（M4 实现）。
+- **D5 审批应答通道**：DSH 无 HTTP 审批 API；gateway-core 注册 `approval/request` answerer（网关侧应答），而非设计初稿假设的"DSH 侧审批服务"。
+- **D6 版本**：`@deepseek-ai/cordis@4.0.1`；DSH 运行时包 `@deepseek-ai/dsh-agent | dsh-llm | dsh-session@^0.1.0-rc.6`；dsh CLI 需 Node ≥ 22.15（`node:zlib` zstd 导出）；Windows 插件路径须 `file://` URL。
