@@ -2,8 +2,9 @@
 
 > 前提：`npm run build` 通过；DSH 侧（mock 或真实 dsh + gateway-core）已在跑。
 > 启动 gateway：`GATEWAY_ADAPTERS=<ids> ... node packages/gateway/dist/index.js`
+> **真机注意**：真实 DSH 需要模型已配置（插件会自动用 `agentDefaultModel`，即在 DSH Web UI 配好的模型路由）。
 
-## Telegram（最易验证，推荐先做）
+## Telegram（最易验证，推荐先做）✅ 已真机验证（2026-08-16）
 
 1. 在 @BotFather 创建 bot，拿 token：`TELEGRAM_BOT_TOKEN=<token>`
 2. 启动：
@@ -15,7 +16,7 @@
    ```
    （chatId/userId 可在 bot 收到消息后查看日志或先用空白名单试一次）
 3. 给自己 bot 发 "你好"，确认收到 agent 回复
-4. 触发审批：发一条含 "dangerous" 的消息（mock 会触发），确认收到【同意/拒绝】inline 按钮，点击后收到执行/拒绝结果
+4. 触发审批：发一条**真正触发工具调用**的消息（如 `帮我用 bash 看看当前目录`，真实 DSH 的沙箱会弹审批）；mock 环境则发含 "dangerous" 的消息。确认收到【同意/拒绝】inline 按钮，点击后收到执行/拒绝结果
 
 ## WhatsApp
 
