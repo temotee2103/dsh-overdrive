@@ -19,13 +19,13 @@ command -v git >/dev/null 2>&1 || { echo "[x] git is required. https://git-scm.c
 echo "[ok] docker + git found"
 
 # 1. install folder
-read -r -p "[1/4] Install folder [default: ~/dsh-overdrive]: " dir
+read -r -p "[1/4] Install folder [default: ~/dsh-overdrive]: " dir < /dev/tty
 dir="${dir:-$HOME/dsh-overdrive}"
 dir="${dir%/}"
 
 # 2. DeepSeek API key
 echo "  Get a key (2 min): https://platform.deepseek.com/api_keys"
-read -r -p "[2/4] Paste your DeepSeek API key (sk-...): " key
+read -r -p "[2/4] Paste your DeepSeek API key (sk-...): " key < /dev/tty
 case "$key" in
   sk-*) ;;
   *) echo "[x] That does not look like a DeepSeek key (should start with sk-)."; exit 1 ;;
@@ -33,14 +33,14 @@ esac
 
 # 3. platforms
 echo "  Platforms: telegram, whatsapp, discord, slack, feishu, dingtalk, wecom"
-read -r -p "[3/4] Which platforms? (comma separated, default: telegram): " plats
+read -r -p "[3/4] Which platforms? (comma separated, default: telegram): " plats < /dev/tty
 plats="${plats:-telegram}"
 plats="$(echo "$plats" | tr -d ' ' | sed 's/,,*/,/g; s/^,//; s/,$//')"
 
 tg_token=""
 if echo "$plats" | grep -q telegram; then
   echo "  Create a bot (2 min): open https://t.me/BotFather -> /newbot -> copy the token"
-  read -r -p "[3b] Paste your Telegram bot token (123456789:AA...): " tg_token
+  read -r -p "[3b] Paste your Telegram bot token (123456789:AA...): " tg_token < /dev/tty
   case "$tg_token" in
     [0-9]*:[A-Za-z0-9_-]*) ;;
     *) echo "[x] That does not look like a Telegram bot token."; exit 1 ;;
