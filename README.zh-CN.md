@@ -1,10 +1,10 @@
 # ⚡ dsh-overdrive
 
-> **把 DeepSeek Harness 变成"看得见思考过程、可以随时指挥"的聊天智能体。**
+> **DSH 界的 OpenClaw：把 DeepSeek Harness 变成"看得见思考过程、可以随时指挥"的聊天智能体。**
 
 [**English**](README.md) | **中文**
 
-`dsh-overdrive` 把 DeepSeek Harness (DSH) 桥接进 **WhatsApp · Telegram · Discord · Slack · 飞书 · 钉钉 · 企业微信** —— 做到了 Hermes / OpenClaw 做不到的事：**每一步思考和工具调用都在聊天里可见**，危险操作永远等你点头。
+`dsh-overdrive` 是 **Hermes Agent / OpenClaw 的多平台平替，但基于 DeepSeek Harness** —— 桥接进 **WhatsApp · Telegram · Discord · Slack · 飞书 · 钉钉 · 企业微信** —— 做到了它们做不到的事：**每一步思考和工具调用都在聊天里可见**，危险操作永远等你点头。
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/temotee2103/dsh-overdrive/actions/workflows/ci.yml/badge.svg)](https://github.com/temotee2103/dsh-overdrive/actions/workflows/ci.yml)

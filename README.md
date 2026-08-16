@@ -1,10 +1,10 @@
 # ⚡ dsh-overdrive
 
-> **Turn DeepSeek Harness into the chat agent you can see thinking — and command from any messaging app.**
+> **The OpenClaw of DeepSeek Harness — turn DSH into the chat agent you can see thinking, ready in one command.**
 
 **English** | [**中文**](README.zh-CN.md)
 
-`dsh-overdrive` bridges DeepSeek Harness (DSH) into **WhatsApp · Telegram · Discord · Slack · 飞书 · 钉钉 · 企业微信** — with a difference Hermes / OpenClaw don't have: **every thought and tool call is visible inside the chat**, and dangerous operations always wait for your tap.
+`dsh-overdrive` is the **Hermes Agent / OpenClaw alternative built on DeepSeek Harness** — bridging into **WhatsApp · Telegram · Discord · Slack · 飞书 · 钉钉 · 企业微信**, with the difference they don't have: **every thought and tool call is visible inside the chat**, and dangerous operations always wait for your tap.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/temotee2103/dsh-overdrive/actions/workflows/ci.yml/badge.svg)](https://github.com/temotee2103/dsh-overdrive/actions/workflows/ci.yml)
