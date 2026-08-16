@@ -1,5 +1,10 @@
-import { App } from '@slack/bolt';
+import Bolt from '@slack/bolt';
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
+
+// @slack/bolt 是 CommonJS 包：Node 原生 ESM 下 `import { App }`（命名导入）会因
+// cjs-module-lexer 无法识别其导出而失败（App 为 undefined / 静态导入抛 SyntaxError），
+// 必须 default 导入后解构。
+const { App } = Bolt;
 
 // ── 纯函数 ────────────────────────────────────────────────────
 
@@ -41,7 +46,8 @@ export interface SlackAdapterOptions {
 
 export class SlackAdapter implements Adapter {
   readonly id = 'slack';
-  private readonly app: App;
+  // 解构出的 App 只有值绑定（无类型绑定），实例类型需用 InstanceType<typeof App>
+  private readonly app: InstanceType<typeof App>;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
 
