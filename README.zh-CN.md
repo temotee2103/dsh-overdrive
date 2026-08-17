@@ -30,7 +30,7 @@ DSH 的 append-only session log 是它们抄不走的。`dsh-overdrive` 把这�
 ## 效果长这样
 
 <p align="center">
-  <img src="docs/demo-animation.gif" alt="dsh-overdrive 动画演示" width="680">
+  <img src="https://raw.githubusercontent.com/temotee2103/dsh-overdrive/main/docs/demo-animation.gif" alt="dsh-overdrive 动画演示" width="680">
 </p>
 
 <details>

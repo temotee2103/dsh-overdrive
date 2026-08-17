@@ -30,7 +30,7 @@ DSH's append-only session log is the one thing they can't copy. `dsh-overdrive` 
 ## What it looks like
 
 <p align="center">
-  <img src="docs/demo-animation.gif" alt="dsh-overdrive animated demo" width="680">
+  <img src="https://raw.githubusercontent.com/temotee2103/dsh-overdrive/main/docs/demo-animation.gif" alt="dsh-overdrive animated demo" width="680">
 </p>
 
 <details>
