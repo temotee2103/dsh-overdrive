@@ -114,7 +114,7 @@ npx dsh-overdrive-gateway
 | 项 | 建议 |
 |---|---|
 | 分类/标签 | 分类：人工智能；标签：`DeepSeek` `DeepSeek Harness` `AI Agent` `开源` `插件` |
-| 首图 | 用 README 动画演示截图（`docs/demo-animation.svg` 截一张带轨迹卡片的画面），首图尺寸 16:9 |
+| 首图 | 用 README 动画演示（`docs/demo-animation.gif`）在关键帧（轨迹卡片+审批按钮同屏）截一张静态图，尺寸 16:9 |
 | 发布时间 | 工作日 **10:00–11:00 或 20:00–22:00**（CSDN 流量高峰） |
 | 前 30 分钟 | 发布后立即在开头钩子评论区自评一条："大家最想接入哪个平台？我看看投票" 引导互动 |
 | 联动 | 同步发到掘金（改标题：`「DSH 界的 OpenClaw」…`）+ 知乎问题回答 |
