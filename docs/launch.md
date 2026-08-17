@@ -8,7 +8,7 @@
 - ✅ hermes 风格设置向导：`npx dsh-overdrive-setup`（交互式 + 凭据实时验证）
 - ✅ DSH 官方 Discussion 发帖：https://github.com/deepseek-ai/deepseek-harness/discussions/2546（"Show Your Plugins!"）
 - ✅ awesome-dsh-plugin PR #1191（4838⭐）：https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1191
-- ✅ awesome-deepseek-harness PR #321（589⭐）：https://github.com/0xsline/awesome-deepseek-harness/pull/321
+- ✅ awesome-deepseek-harness **PR #321 已合并**（2026-08-17，中英文条目均上线）：https://github.com/0xsline/awesome-deepseek-harness/pull/321
 - ✅ dsh-index（dsh-index.xlings.org）PR #42：https://github.com/Sunrisepeak/dsh-index/pull/42（含 Monorepo 说明；CI 待维护者批准运行）
 - ✅ 双语 README + 自带动画 SVG 演示（免录屏）
 - ✅ 发布稿草稿：`docs/launch-hn.md`（Show HN）、`docs/launch-cn.md`（CSDN/掘金/知乎）
