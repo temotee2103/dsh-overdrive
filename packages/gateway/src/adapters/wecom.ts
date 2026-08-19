@@ -1,6 +1,7 @@
 import { createHash, createDecipheriv, createCipheriv, randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
+import { PendingButtons } from '../pending-buttons.js';
 
 // ── 纯函数：AES-256-CBC 加解密（企业微信协议）──────────────────
 
@@ -98,7 +99,9 @@ export class WeComAdapter implements Adapter {
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
-  private readonly pendingButtons = new Map<string, OutboundButton[]>();
+  private readonly pendingButtons = new PendingButtons();
+  /** access_token 缓存：企业微信 token 有效期 7200s，且有获取频率限制，必须复用。 */
+  private tokenCache?: { token: string; expiresAt: number };
 
   constructor(private readonly opts: WeComAdapterOptions) {}
 
@@ -138,14 +141,10 @@ export class WeComAdapter implements Adapter {
       res.writeHead(200, { 'content-type': 'text/plain' });
       res.end('success'); // 先应答，避免企业微信重试
       if (!normalized) return;
-      const pending = this.pendingButtons.get(normalized.chatId);
-      if (pending) {
-        const button = matchNumberedButton(normalized.text, pending);
-        if (button) {
-          this.pendingButtons.delete(normalized.chatId);
-          this.replyCb?.(button.id);
-          return;
-        }
+      const button = this.pendingButtons.match(normalized.chatId, normalized.text);
+      if (button) {
+        this.replyCb?.(button.id);
+        return;
       }
       this.messageCb?.(normalized);
     }
@@ -169,9 +168,12 @@ export class WeComAdapter implements Adapter {
   }
 
   private async fetchAccessToken(): Promise<string> {
+    if (this.tokenCache && this.tokenCache.expiresAt > Date.now()) return this.tokenCache.token;
     const url = `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${encodeURIComponent(this.opts.corpId)}&corpsecret=${encodeURIComponent(this.opts.secret)}`;
     const data = (await fetch(url).then((r) => r.json())) as { access_token?: string; errcode?: number };
     if (!data.access_token) throw new Error(`企业微信 token 获取失败: ${data.errcode}`);
+    // 官方有效期 7200s；留 200s 余量，避免临界过期
+    this.tokenCache = { token: data.access_token, expiresAt: Date.now() + 7_000_000 };
     return data.access_token;
   }
 

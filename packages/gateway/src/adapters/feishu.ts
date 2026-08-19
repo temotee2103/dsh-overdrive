@@ -1,5 +1,6 @@
 import lark from '@larksuiteoapi/node-sdk';
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
+import { PendingButtons } from '../pending-buttons.js';
 
 // @larksuiteoapi/node-sdk 是 CommonJS 包（main=lib/index.js，无 "type":"module"）：
 // Node 原生 ESM 下必须 default 导入后解构（同 M2b 的 @slack/bolt 处理）。
@@ -60,7 +61,7 @@ export class FeishuAdapter implements Adapter {
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
-  private readonly pendingButtons = new Map<string, OutboundButton[]>();
+  private readonly pendingButtons = new PendingButtons();
   /** chatId → 最近一条入站消息的 message_id（send 优先 reply，缺失则 create 兜底） */
   private readonly lastMessageIds = new Map<string, string>();
 
@@ -78,14 +79,10 @@ export class FeishuAdapter implements Adapter {
         const normalized = parseFeishuTextMessage(data);
         if (!normalized) return;
         const chatId = normalized.chatId;
-        const pending = this.pendingButtons.get(chatId);
-        if (pending) {
-          const button = matchNumberedButton(normalized.text, pending);
-          if (button) {
-            this.pendingButtons.delete(chatId);
-            this.replyCb?.(button.id);
-            return;
-          }
+        const button = this.pendingButtons.match(chatId, normalized.text);
+        if (button) {
+          this.replyCb?.(button.id);
+          return;
         }
         this.messageCb?.(normalized);
       },

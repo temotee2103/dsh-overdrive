@@ -1,4 +1,5 @@
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
+import { PendingButtons } from '../pending-buttons.js';
 import { DWClient, TOPIC_ROBOT, type RobotMessage } from 'dingtalk-stream-sdk-nodejs';
 
 // dingtalk-stream-sdk-nodejs@2.0.4 实测：exports 提供 DWClient + TOPIC_ROBOT
@@ -54,7 +55,7 @@ export class DingTalkAdapter implements Adapter {
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
-  private readonly pendingButtons = new Map<string, OutboundButton[]>();
+  private readonly pendingButtons = new PendingButtons();
   /** conversationId → 最近的 sessionWebhook（回复通道，过期由钉钉侧管理） */
   private readonly webhooks = new Map<string, string>();
 
@@ -73,14 +74,10 @@ export class DingTalkAdapter implements Adapter {
       const parsed = parseBotMessage(data);
       if (!parsed) return;
       this.webhooks.set(parsed.chatId, parsed.sessionWebhook);
-      const pending = this.pendingButtons.get(parsed.chatId);
-      if (pending) {
-        const button = matchNumberedButton(parsed.text, pending);
-        if (button) {
-          this.pendingButtons.delete(parsed.chatId);
-          this.replyCb?.(button.id);
-          return;
-        }
+      const button = this.pendingButtons.match(parsed.chatId, parsed.text);
+      if (button) {
+        this.replyCb?.(button.id);
+        return;
       }
       this.messageCb?.({ chatId: parsed.chatId, userId: parsed.userId, text: parsed.text });
     });

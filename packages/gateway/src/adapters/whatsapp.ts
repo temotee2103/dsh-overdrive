@@ -8,6 +8,7 @@ import makeWASocket, {
 import * as qrcode from 'qrcode-terminal';
 import pino from 'pino';
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
+import { PendingButtons } from '../pending-buttons.js';
 
 // ── 纯函数（可单测）────────────────────────────────────────────
 
@@ -129,8 +130,8 @@ export class WhatsAppAdapter implements Adapter {
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
   private replyCb?: (buttonId: string) => void;
-  /** chatId → 当前 pending 按钮（编号回复 → 按钮 id） */
-  private readonly pendingButtons = new Map<string, OutboundButton[]>();
+  /** chatId → 当前 pending 按钮（编号回复 → 按钮 id，带 TTL 防过期误吞） */
+  private readonly pendingButtons = new PendingButtons();
 
   constructor(private readonly opts: WhatsAppAdapterOptions) {}
 
@@ -173,21 +174,17 @@ export class WhatsAppAdapter implements Adapter {
         const buttonId = parseNativeButtonResponse(waRaw);
         if (buttonId) {
           const chatId = waRaw.key?.remoteJid;
-          if (chatId) this.pendingButtons.delete(chatId);
+          if (chatId) this.pendingButtons.consume(chatId);
           this.replyCb?.(buttonId);
           continue;
         }
         const normalized = normalizeWhatsAppMessage(waRaw);
         if (!normalized) continue;
-        // 编号回复兜底：若该 chat 有 pending 按钮且消息是数字，转成按钮点击
-        const pending = this.pendingButtons.get(normalized.msg.chatId);
-        if (pending) {
-          const button = matchNumberedReply(normalized.msg.text, pending);
-          if (button) {
-            this.pendingButtons.delete(normalized.msg.chatId);
-            this.replyCb?.(button.id);
-            continue;
-          }
+        // 编号回复兜底：若该 chat 有 pending 按钮且消息是数字（TTL 内），转成按钮点击
+        const button = this.pendingButtons.match(normalized.msg.chatId, normalized.msg.text);
+        if (button) {
+          this.replyCb?.(button.id);
+          continue;
         }
         this.messageCb?.(normalized.msg);
       }
