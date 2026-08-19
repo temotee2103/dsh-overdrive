@@ -10,7 +10,7 @@
 [![CI](https://github.com/temotee2103/dsh-overdrive/actions/workflows/ci.yml/badge.svg)](https://github.com/temotee2103/dsh-overdrive/actions/workflows/ci.yml)
 [![DSH](https://img.shields.io/badge/DSH-0.1.0--rc.6-blueviolet)](https://github.com/deepseek-ai/DeepSeek-Harness)
 [![npm](https://img.shields.io/npm/v/@dsh-overdrive/gateway-core)](https://www.npmjs.com/package/@dsh-overdrive/gateway-core)
-[![Platforms](https://img.shields.io/badge/platforms-10-green)](#支持的平台)
+[![Platforms](https://img.shields.io/badge/platforms-8-green)](#支持的平台)
 
 ---
 
