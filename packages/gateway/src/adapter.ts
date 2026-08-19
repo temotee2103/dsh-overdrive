@@ -12,6 +12,12 @@ export interface OutboundPayload {
   buttons?: OutboundButton[];
 }
 
+/** 按钮回执的点击者身份（用于白名单校验）。chatId 在个别平台回调中可能缺失，缺失时按未授权处理（fail-closed）。 */
+export interface ReplySender {
+  chatId: string;
+  userId: string;
+}
+
 /** 平台适配器契约：M2/M3 的 WhatsApp/Telegram/… 都实现它。 */
 export interface Adapter {
   readonly id: string;
@@ -22,5 +28,6 @@ export interface Adapter {
   /** 可选：连接状态（供控制台）。 */
   status?(): { connected: boolean };
   onMessage(cb: (msg: NormalizedMessage) => void): void;
-  onReply(cb: (buttonId: string) => void): void;
+  /** 按钮点击回执：buttonId + 点击者身份。身份缺失即传空字符串，由上层按未授权处理。 */
+  onReply(cb: (buttonId: string, sender: ReplySender) => void): void;
 }

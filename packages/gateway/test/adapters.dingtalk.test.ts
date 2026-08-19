@@ -37,13 +37,19 @@ describe('buildActionCard（钉钉 actionCard）', () => {
   });
 });
 
-describe('parseCardCallback（TOPIC_CARD 回调载荷 → 按钮 id）', () => {
+describe('parseCardCallback（TOPIC_CARD 回调载荷 → 按钮 id + 身份）', () => {
   it('识别 cardCallbackData 字段', () => {
-    expect(parseCardCallback({ cardPrivateData: { cardCallbackData: '{"action":"approve","reqId":"r1"}' } })).toBe('approve:r1');
+    expect(parseCardCallback({ cardPrivateData: { cardCallbackData: '{"action":"approve","reqId":"r1"}' } })).toMatchObject({ buttonId: 'approve:r1' });
   });
   it('识别 params / cardActionData 字段与嵌套结构', () => {
-    expect(parseCardCallback({ cardPrivateData: { params: '{"action":"reject","reqId":"r9"}' } })).toBe('reject:r9');
-    expect(parseCardCallback({ a: { b: { cardActionData: '{"action":"approve","reqId":"x"}' } } })).toBe('approve:x');
+    expect(parseCardCallback({ cardPrivateData: { params: '{"action":"reject","reqId":"r9"}' } })).toMatchObject({ buttonId: 'reject:r9' });
+    expect(parseCardCallback({ a: { b: { cardActionData: '{"action":"approve","reqId":"x"}' } } })).toMatchObject({ buttonId: 'approve:x' });
+  });
+  it('带回会话与用户身份（用于白名单校验）', () => {
+    expect(parseCardCallback({
+      cardPrivateData: { cardCallbackData: '{"action":"approve","reqId":"r1"}', userId: 'u1' },
+      conversationId: 'cid1',
+    })).toEqual({ buttonId: 'approve:r1', chatId: 'cid1', userId: 'u1' });
   });
   it('非法载荷返回 null', () => {
     expect(parseCardCallback(null)).toBeNull();
@@ -53,6 +59,6 @@ describe('parseCardCallback（TOPIC_CARD 回调载荷 → 按钮 id）', () => {
   });
   it('buttonCallbackData 与 parseCardCallback 往返一致', () => {
     const data = buttonCallbackData({ id: 'reject:r7', label: 'x' });
-    expect(parseCardCallback({ cardPrivateData: { cardCallbackData: data } })).toBe('reject:r7');
+    expect(parseCardCallback({ cardPrivateData: { cardCallbackData: data } })).toMatchObject({ buttonId: 'reject:r7' });
   });
 });

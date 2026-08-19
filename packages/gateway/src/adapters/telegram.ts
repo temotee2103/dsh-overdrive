@@ -69,7 +69,7 @@ export class TelegramAdapter implements Adapter {
   private readonly token: string;
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
-  private replyCb?: (buttonId: string) => void;
+  private replyCb?: (buttonId: string, sender: { chatId: string; userId: string }) => void;
 
   constructor(opts: TelegramAdapterOptions) {
     this.token = opts.token;
@@ -86,7 +86,11 @@ export class TelegramAdapter implements Adapter {
     this.bot.on('callback_query:data', async (ctx) => {
       const data = ctx.callbackQuery.data;
       await ctx.answerCallbackQuery().catch(() => undefined);
-      this.replyCb?.(data);
+      const chat = ctx.callbackQuery.message?.chat as { id?: number | string } | undefined;
+      this.replyCb?.(data, {
+        chatId: String(chat?.id ?? ''),
+        userId: String(ctx.callbackQuery.from.id),
+      });
     });
     this.bot.catch((err) => console.error('[telegram]', err));
     void this.bot.start(); // 长轮询（自托管无需 webhook）
@@ -124,6 +128,6 @@ export class TelegramAdapter implements Adapter {
   }
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
-  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  onReply(cb: (buttonId: string, sender: { chatId: string; userId: string }) => void): void { this.replyCb = cb; }
   status(): { connected: boolean } { return { connected: this.connected }; }
 }

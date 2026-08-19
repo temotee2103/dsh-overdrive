@@ -98,7 +98,7 @@ export class WeComAdapter implements Adapter {
   private server?: ReturnType<typeof createServer>;
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
-  private replyCb?: (buttonId: string) => void;
+  private replyCb?: (buttonId: string, sender: { chatId: string; userId: string }) => void;
   private readonly pendingButtons = new PendingButtons();
   /** access_token 缓存：企业微信 token 有效期 7200s，且有获取频率限制，必须复用。 */
   private tokenCache?: { token: string; expiresAt: number };
@@ -143,7 +143,7 @@ export class WeComAdapter implements Adapter {
       if (!normalized) return;
       const button = this.pendingButtons.match(normalized.chatId, normalized.text);
       if (button) {
-        this.replyCb?.(button.id);
+        this.replyCb?.(button.id, { chatId: normalized.chatId, userId: normalized.userId });
         return;
       }
       this.messageCb?.(normalized);
@@ -178,7 +178,7 @@ export class WeComAdapter implements Adapter {
   }
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
-  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  onReply(cb: (buttonId: string, sender: { chatId: string; userId: string }) => void): void { this.replyCb = cb; }
   status(): { connected: boolean } { return { connected: this.connected }; }
 }
 

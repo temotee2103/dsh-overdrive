@@ -69,7 +69,7 @@ export class SlackAdapter implements Adapter {
   private readonly app: InstanceType<typeof App>;
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
-  private replyCb?: (buttonId: string) => void;
+  private replyCb?: (buttonId: string, sender: { chatId: string; userId: string }) => void;
 
   constructor(opts: SlackAdapterOptions) {
     this.app = new App({ token: opts.botToken, appToken: opts.appToken, socketMode: true });
@@ -82,8 +82,18 @@ export class SlackAdapter implements Adapter {
     });
     this.app.action(/^approve:|^reject:/, async ({ ack, body, respond }) => {
       await ack();
-      const action = (body as { actions?: Array<{ value?: string }> }).actions?.[0];
-      if (action?.value) this.replyCb?.(action.value);
+      const b = body as {
+        actions?: Array<{ value?: string }>;
+        user?: { id?: string };
+        channel?: { id?: string };
+      };
+      const action = b.actions?.[0];
+      if (action?.value) {
+        this.replyCb?.(action.value, {
+          chatId: b.channel?.id ?? '',
+          userId: b.user?.id ?? '',
+        });
+      }
       await respond({ text: '处理中…', replace_original: false }).catch(() => undefined);
     });
     await this.app.start(0); // Socket Mode 不需要端口；start(0) 仅建立连接
@@ -100,6 +110,6 @@ export class SlackAdapter implements Adapter {
   }
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
-  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  onReply(cb: (buttonId: string, sender: { chatId: string; userId: string }) => void): void { this.replyCb = cb; }
   status(): { connected: boolean } { return { connected: this.connected }; }
 }

@@ -70,31 +70,46 @@ export function buildActionCard(text: string, buttons: OutboundButton[]): {
   };
 }
 
+export interface CardCallbackResult {
+  buttonId: string;
+  chatId?: string;
+  userId?: string;
+}
+
 /**
- * 钉钉卡片回调载荷 → 按钮 id（"approve:<reqId>"）。
- * Stream 模式下回调 JSON 的字段名（cardCallbackData / params / cardActionData）在不同卡片版本有差异，
- * 这里做多路径深度兜底解析；真机验证后可按实际字段收敛。找不到返回 null。
+ * 钉钉卡片回调载荷 → { buttonId, chatId?, userId? }。
+ * Stream 模式下回调 JSON 的字段名（cardCallbackData / params / cardActionData，以及会话/用户字段）
+ * 在不同卡片版本有差异，这里做多路径深度兜底解析；真机验证后可按实际字段收敛。找不到返回 null。
  */
-export function parseCardCallback(raw: unknown): string | null {
-  const visit = (obj: unknown, depth: number): string | null => {
-    if (depth > 5 || !obj || typeof obj !== 'object') return null;
+export function parseCardCallback(raw: unknown): CardCallbackResult | null {
+  let buttonId: string | null = null;
+  let chatId: string | undefined;
+  let userId: string | undefined;
+
+  const visit = (obj: unknown, depth: number): void => {
+    if (depth > 5 || !obj || typeof obj !== 'object') return;
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      if (typeof value === 'string' && (key === 'cardCallbackData' || key === 'params' || key === 'cardActionData')) {
+      if (!buttonId && typeof value === 'string' && (key === 'cardCallbackData' || key === 'params' || key === 'cardActionData')) {
         try {
           const parsed = JSON.parse(value) as { action?: string; reqId?: string };
           if ((parsed.action === 'approve' || parsed.action === 'reject') && typeof parsed.reqId === 'string' && parsed.reqId) {
-            return `${parsed.action}:${parsed.reqId}`;
+            buttonId = `${parsed.action}:${parsed.reqId}`;
           }
         } catch {
           /* 该字段不是 JSON 载荷，继续往下找 */
         }
       }
-      const found = visit(value, depth + 1);
-      if (found) return found;
+      if (!chatId && typeof value === 'string' && (key === 'conversationId' || key === 'conversation_id') && value) {
+        chatId = value;
+      }
+      if (!userId && typeof value === 'string' && (key === 'senderStaffId' || key === 'senderId' || key === 'userid' || key === 'userId') && value) {
+        userId = value;
+      }
+      if (typeof value === 'object') visit(value, depth + 1);
     }
-    return null;
   };
-  return visit(raw, 0);
+  visit(raw, 0);
+  return buttonId ? { buttonId, chatId, userId } : null;
 }
 
 // ── 适配器 ────────────────────────────────────────────────────
@@ -109,7 +124,7 @@ export class DingTalkAdapter implements Adapter {
   private client?: DWClient;
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
-  private replyCb?: (buttonId: string) => void;
+  private replyCb?: (buttonId: string, sender: { chatId: string; userId: string }) => void;
   private readonly pendingButtons = new PendingButtons();
   /** conversationId → 最近的 sessionWebhook（回复通道，过期由钉钉侧管理） */
   private readonly webhooks = new Map<string, string>();
@@ -131,7 +146,7 @@ export class DingTalkAdapter implements Adapter {
       this.webhooks.set(parsed.chatId, parsed.sessionWebhook);
       const button = this.pendingButtons.match(parsed.chatId, parsed.text);
       if (button) {
-        this.replyCb?.(button.id);
+        this.replyCb?.(button.id, { chatId: parsed.chatId, userId: parsed.userId });
         return;
       }
       this.messageCb?.({ chatId: parsed.chatId, userId: parsed.userId, text: parsed.text });
@@ -144,8 +159,13 @@ export class DingTalkAdapter implements Adapter {
       } catch {
         return;
       }
-      const buttonId = parseCardCallback(data);
-      if (buttonId) this.replyCb?.(buttonId);
+      const result = parseCardCallback(data);
+      if (result) {
+        this.replyCb?.(result.buttonId, {
+          chatId: result.chatId ?? result.userId ?? '',
+          userId: result.userId ?? '',
+        });
+      }
     });
     await client.connect();
     this.connected = true;
@@ -181,6 +201,6 @@ export class DingTalkAdapter implements Adapter {
   }
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
-  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  onReply(cb: (buttonId: string, sender: { chatId: string; userId: string }) => void): void { this.replyCb = cb; }
   status(): { connected: boolean } { return { connected: this.connected }; }
 }

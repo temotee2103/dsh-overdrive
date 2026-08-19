@@ -5,7 +5,7 @@ import type { Adapter, NormalizedMessage, OutboundPayload } from '../adapter.js'
 export class CliAdapter implements Adapter {
   readonly id = 'cli';
   private messageCb?: (msg: NormalizedMessage) => void;
-  private replyCb?: (buttonId: string) => void;
+  private replyCb?: (buttonId: string, sender: { chatId: string; userId: string }) => void;
   private rl?: ReturnType<typeof createInterface>;
 
   async connect(): Promise<void> {
@@ -15,7 +15,7 @@ export class CliAdapter implements Adapter {
       if (!trimmed) return;
       const btn = trimmed.match(/^\/btn\s+(\S+)$/i);
       if (btn) {
-        this.replyCb?.(btn[1]);
+        this.replyCb?.(btn[1], { chatId: 'cli', userId: 'local' });
         return;
       }
       this.messageCb?.({ chatId: 'cli', userId: 'local', text: trimmed });
@@ -31,7 +31,7 @@ export class CliAdapter implements Adapter {
   }
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
-  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  onReply(cb: (buttonId: string, sender: { chatId: string; userId: string }) => void): void { this.replyCb = cb; }
   /** CLI 是本地进程内适配器：恒为已连接。 */
   status(): { connected: boolean } { return { connected: true }; }
 }

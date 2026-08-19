@@ -65,6 +65,8 @@ export function planOutbound(ev: ServerEvent): { payload: OutboundPayload } | nu
 
 export interface WireOptions {
   allowlist: string[];
+  /** 开发逃生口：ALLOW_ALL=1 跳过白名单（生产勿开）。 */
+  allowAll?: boolean;
   /** ASR 转写器；配置了 API key 时启用，语音消息转成文本再发给 agent。 */
   asr?: AsrTranscriber;
 }
@@ -131,7 +133,7 @@ export async function wireAdapter(
   client: GatewayClient,
   opts: WireOptions,
 ): Promise<void> {
-  const allow = new Allowlist(opts.allowlist);
+  const allow = new Allowlist(opts.allowlist, opts.allowAll);
   const chatIds = new Map<string, string>();
   const aggregator = new TrajectoryAggregator();
   const deltas = new DeltaTracker();
@@ -174,13 +176,22 @@ export async function wireAdapter(
     }
   });
 
-  adapter.onReply(async (buttonId) => {
+  adapter.onReply(async (buttonId, sender) => {
     try {
       const idx = buttonId.indexOf(':');
       if (idx < 0) return;
       const action = buttonId.slice(0, idx) as 'approve' | 'reject';
       const reqId = buttonId.slice(idx + 1);
       if ((action === 'approve' || action === 'reject') && reqId) {
+        // 安全边界：审批按钮必须校验点击者（维护者评审指出：未授权用户可代授权）
+        const senderKey = buildSessionKey(adapter.id, { chatId: sender.chatId, userId: sender.userId });
+        if (!allow.allows(senderKey)) {
+          console.warn(`[gateway][${adapter.id}] 按钮点击者不在白名单，拒绝批准: ${senderKey}`);
+          if (sender.chatId) {
+            await adapter.send(sender.chatId, { text: '⛔ 你不在白名单里，不能批准该操作。' }).catch(() => undefined);
+          }
+          return;
+        }
         await client.resolveApproval(reqId, action);
       }
     } catch (error) {
@@ -221,6 +232,7 @@ async function main(): Promise<void> {
   const dshToken = process.env.DSH_TOKEN ?? 'dev-token';
   const allowlist = (process.env.ALLOWLIST ?? '')
     .split(',').map((s) => s.trim()).filter(Boolean);
+  const allowAll = process.env.ALLOW_ALL === '1';
   const adapterIds = parseAdapterIds(process.env.GATEWAY_ADAPTERS ?? 'cli');
   const env = adapterEnvFromProcess();
   const asr = createTranscriber({
@@ -236,7 +248,7 @@ async function main(): Promise<void> {
   const adapters: Adapter[] = adapterIds.map((id) => createAdapter(id, env));
   for (const adapter of adapters) {
     await adapter.connect();
-    await wireAdapter(adapter, client, { allowlist, asr });
+    await wireAdapter(adapter, client, { allowlist, allowAll, asr });
     console.log(`[gateway] ${adapter.id} 适配器已就绪`);
   }
 

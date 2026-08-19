@@ -64,7 +64,7 @@ export class DiscordAdapter implements Adapter {
   private readonly client: Client;
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
-  private replyCb?: (buttonId: string) => void;
+  private replyCb?: (buttonId: string, sender: { chatId: string; userId: string }) => void;
 
   constructor(opts: DiscordAdapterOptions) {
     this.client = new Client({
@@ -89,7 +89,10 @@ export class DiscordAdapter implements Adapter {
       if (!interaction.isButton()) return;
       const button = interaction as ButtonInteraction;
       await button.deferUpdate().catch(() => undefined);
-      this.replyCb?.(button.customId);
+      this.replyCb?.(button.customId, {
+        chatId: button.channelId,
+        userId: button.user.id,
+      });
     });
   }
 
@@ -112,6 +115,6 @@ export class DiscordAdapter implements Adapter {
   }
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
-  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  onReply(cb: (buttonId: string, sender: { chatId: string; userId: string }) => void): void { this.replyCb = cb; }
   status(): { connected: boolean } { return { connected: this.connected }; }
 }

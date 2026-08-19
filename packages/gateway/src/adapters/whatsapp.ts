@@ -129,7 +129,7 @@ export class WhatsAppAdapter implements Adapter {
   private sock?: WASocket;
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
-  private replyCb?: (buttonId: string) => void;
+  private replyCb?: (buttonId: string, sender: { chatId: string; userId: string }) => void;
   /** chatId → 当前 pending 按钮（编号回复 → 按钮 id，带 TTL 防过期误吞） */
   private readonly pendingButtons = new PendingButtons();
 
@@ -175,7 +175,10 @@ export class WhatsAppAdapter implements Adapter {
         if (buttonId) {
           const chatId = waRaw.key?.remoteJid;
           if (chatId) this.pendingButtons.consume(chatId);
-          this.replyCb?.(buttonId);
+          this.replyCb?.(buttonId, {
+            chatId: chatId ?? '',
+            userId: waRaw.key?.participant ?? chatId ?? '',
+          });
           continue;
         }
         const normalized = normalizeWhatsAppMessage(waRaw);
@@ -183,7 +186,10 @@ export class WhatsAppAdapter implements Adapter {
         // 编号回复兜底：若该 chat 有 pending 按钮且消息是数字（TTL 内），转成按钮点击
         const button = this.pendingButtons.match(normalized.msg.chatId, normalized.msg.text);
         if (button) {
-          this.replyCb?.(button.id);
+          this.replyCb?.(button.id, {
+            chatId: normalized.msg.chatId,
+            userId: normalized.msg.userId,
+          });
           continue;
         }
         this.messageCb?.(normalized.msg);
@@ -223,6 +229,6 @@ export class WhatsAppAdapter implements Adapter {
   }
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
-  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  onReply(cb: (buttonId: string, sender: { chatId: string; userId: string }) => void): void { this.replyCb = cb; }
   status(): { connected: boolean } { return { connected: this.connected }; }
 }

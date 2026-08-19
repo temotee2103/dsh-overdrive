@@ -82,7 +82,7 @@ describe('wireAdapter（命令分发 + delta 打字指示 + 轨迹聚合接线�
   it('message.delta → sendTyping 一次；complete 后下一 turn 再触发', async () => {
     const adapter = new FakeAdapter('cli');
     const { client, push } = fakeClient();
-    await wireAdapter(adapter, client, { allowlist: [] });
+    await wireAdapter(adapter, client, { allowlist: [], allowAll: true });
 
     push({ type: 'message.delta', sessionId: 'cli:cli:local', ts: 1, text: '…' });
     push({ type: 'message.delta', sessionId: 'cli:cli:local', ts: 2, text: '…' });
@@ -97,7 +97,7 @@ describe('wireAdapter（命令分发 + delta 打字指示 + 轨迹聚合接线�
   it('trajectory.step 不实时输出，idle 时以 trajectory.summary 摘要输出', async () => {
     const adapter = new FakeAdapter('cli');
     const { client, push } = fakeClient();
-    await wireAdapter(adapter, client, { allowlist: [] });
+    await wireAdapter(adapter, client, { allowlist: [], allowAll: true });
 
     push({ type: 'agent.status', sessionId: 'cli:cli:local', ts: 1, status: 'busy' });
     push({ type: 'trajectory.step', sessionId: 'cli:cli:local', ts: 2, step: { kind: 'thought', label: '分析' } });
@@ -113,7 +113,7 @@ describe('wireAdapter（命令分发 + delta 打字指示 + 轨迹聚合接线�
   it('/help → HELP_TEXT 原样输出', async () => {
     const adapter = new FakeAdapter('cli');
     const { client } = fakeClient();
-    await wireAdapter(adapter, client, { allowlist: [] });
+    await wireAdapter(adapter, client, { allowlist: [], allowAll: true });
     await adapter.emit({ chatId: 'cli', userId: 'local', text: '/help' });
     expect(adapter.sent[0].payload.text).toBe(HELP_TEXT);
   });
@@ -121,7 +121,7 @@ describe('wireAdapter（命令分发 + delta 打字指示 + 轨迹聚合接线�
   it('/task 派子任务并回执；/cron 注册定时任务并回执', async () => {
     const adapter = new FakeAdapter('cli');
     const { client, createTasks } = fakeClient();
-    await wireAdapter(adapter, client, { allowlist: [] });
+    await wireAdapter(adapter, client, { allowlist: [], allowAll: true });
 
     await adapter.emit({ chatId: 'cli', userId: 'local', text: '/task 调研竞品' });
     expect(createTasks).toContainEqual({ sessionId: 'cli:cli:local', kind: 'subagent', prompt: '调研竞品' });
@@ -135,7 +135,7 @@ describe('wireAdapter（命令分发 + delta 打字指示 + 轨迹聚合接线�
   it('/new 走 resetSession 端点并回执；/trace 显示最近摘要，无则提示', async () => {
     const adapter = new FakeAdapter('cli');
     const { client, resets, push } = fakeClient();
-    await wireAdapter(adapter, client, { allowlist: [] });
+    await wireAdapter(adapter, client, { allowlist: [], allowAll: true });
 
     await adapter.emit({ chatId: 'cli', userId: 'local', text: '/trace' });
     expect(adapter.sent.at(-1)!.payload.text).toContain('暂无轨迹');
@@ -155,7 +155,7 @@ describe('wireAdapter（命令分发 + delta 打字指示 + 轨迹聚合接线�
   it('/agents 返回简化回执', async () => {
     const adapter = new FakeAdapter('cli');
     const { client } = fakeClient();
-    await wireAdapter(adapter, client, { allowlist: [] });
+    await wireAdapter(adapter, client, { allowlist: [], allowAll: true });
     await adapter.emit({ chatId: 'cli', userId: 'local', text: '/agents' });
     expect(adapter.sent[0].payload.text).toContain('/task 派发');
   });

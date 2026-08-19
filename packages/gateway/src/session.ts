@@ -7,11 +7,17 @@ export function buildSessionKey(
   return sessionKey(adapterId, msg.chatId, msg.userId);
 }
 
-/** 空列表 = 开发模式放行所有；生产环境必须显式配置。 */
+/**
+ * 白名单：默认 fail-closed —— 只有显式配置了条目才放行；
+ * 开发环境可用 ALLOW_ALL=1 显式放行所有（比空列表隐式放行安全得多）。
+ */
 export class Allowlist {
-  constructor(private readonly entries: string[]) {}
+  constructor(
+    private readonly entries: string[],
+    private readonly allowAll = false,
+  ) {}
 
   allows(key: string): boolean {
-    return this.entries.length === 0 || this.entries.includes(key);
+    return this.allowAll || (this.entries.length > 0 && this.entries.includes(key));
   }
 }

@@ -96,7 +96,7 @@ export class FeishuAdapter implements Adapter {
   private ws?: InstanceType<typeof WSClient>;
   private connected = false;
   private messageCb?: (msg: NormalizedMessage) => void;
-  private replyCb?: (buttonId: string) => void;
+  private replyCb?: (buttonId: string, sender: { chatId: string; userId: string }) => void;
   private readonly pendingButtons = new PendingButtons();
   /** chatId → 最近一条入站消息的 message_id（send 优先 reply，缺失则 create 兜底） */
   private readonly lastMessageIds = new Map<string, string>();
@@ -117,15 +117,26 @@ export class FeishuAdapter implements Adapter {
         const chatId = normalized.chatId;
         const button = this.pendingButtons.match(chatId, normalized.text);
         if (button) {
-          this.replyCb?.(button.id);
+          this.replyCb?.(button.id, { chatId, userId: normalized.userId });
           return;
         }
         this.messageCb?.(normalized);
       },
       // 原生交互卡片按钮回调 → 审批应答（Roadmap v0.2）
-      'card.action.trigger': async (data: { action?: { value?: unknown } }) => {
+      // 载荷字段（operator.open_id / context.open_chat_id）取自官方卡片回调事件；
+      // 个别版本字段名可能不同 —— 拿不到身份时上层按未授权处理（fail-closed），编号回复兜底不受影响。
+      'card.action.trigger': async (data: {
+        action?: { value?: unknown };
+        operator?: { open_id?: string };
+        context?: { open_chat_id?: string };
+      }) => {
         const buttonId = cardActionToButtonId(data?.action?.value);
-        if (buttonId) this.replyCb?.(buttonId);
+        if (buttonId) {
+          this.replyCb?.(buttonId, {
+            chatId: data?.context?.open_chat_id ?? '',
+            userId: data?.operator?.open_id ?? '',
+          });
+        }
       },
     });
     this.ws = new WSClient({
@@ -175,6 +186,6 @@ export class FeishuAdapter implements Adapter {
   }
 
   onMessage(cb: (msg: NormalizedMessage) => void): void { this.messageCb = cb; }
-  onReply(cb: (buttonId: string) => void): void { this.replyCb = cb; }
+  onReply(cb: (buttonId: string, sender: { chatId: string; userId: string }) => void): void { this.replyCb = cb; }
   status(): { connected: boolean } { return { connected: this.connected }; }
 }
