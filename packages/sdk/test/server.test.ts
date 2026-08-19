@@ -17,6 +17,8 @@ function makeHandlers(emit: (ev: ServerEvent) => void): ProtocolHandlers {
     },
     async resolveApproval(reqId, decision) { return { ok: decision === 'approve' }; },
     async createTask() { return { taskId: 'task-1' }; },
+    async listTasks() { return { tasks: [{ id: 'cron-1', schedule: '0 8 * * *', prompt: '每日汇报', sessionId: 'cli:cli:local' }] }; },
+    async removeTask(taskId) { return { ok: taskId === 'cron-1' }; },
     async resetSession() { return { ok: true }; },
   };
 }
@@ -93,6 +95,25 @@ describe('ProtocolServer', () => {
       method: 'POST',
       headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
       body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it('listTasks 走 handlers（GET /v1/tasks）', async () => {
+    const { url } = await startServer();
+    const res = await fetch(`${url}/v1/tasks`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      tasks: [{ id: 'cron-1', schedule: '0 8 * * *', prompt: '每日汇报', sessionId: 'cli:cli:local' }],
+    });
+  });
+
+  it('removeTask 走 handlers（DELETE /v1/tasks/:id）', async () => {
+    const { url } = await startServer();
+    const res = await fetch(`${url}/v1/tasks/cron-1`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${TOKEN}` },
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });

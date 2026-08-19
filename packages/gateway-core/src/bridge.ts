@@ -23,8 +23,9 @@ interface PendingApproval {
   timeout: NodeJS.Timeout;
 }
 
-/** 一条已注册的 cron 任务。sessionId 存协议会话键（platform:channel:user）。 */
+/** 一条已注册的 cron 任务。id 为唯一键；sessionId 存协议会话键（platform:channel:user）。 */
 interface CronJob {
+  id: string;
   sessionId: string;
   schedule: string;
   cron: CronSchedule;
@@ -138,8 +139,10 @@ export class DshBridge {
         if (req.kind === 'cron') {
           if (!req.schedule) throw new Error('cron 任务需要 schedule（5 字段：分 时 日 月 周）');
           const cron = parseCron(req.schedule); // 非法表达式直接抛错，注册失败
-          const taskId = `cron-${Date.now()}`;
-          this.cronJobs.set(req.prompt, {
+          // 用唯一 id 作键（曾用 prompt 作键：相同 prompt 的定时任务会互相覆盖）
+          const taskId = `cron-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          this.cronJobs.set(taskId, {
+            id: taskId,
             sessionId: req.sessionId,
             schedule: req.schedule,
             cron,
@@ -153,6 +156,18 @@ export class DshBridge {
           prompt: req.prompt,
         });
         return { taskId: result.taskId };
+      },
+      listTasks: async () => {
+        const tasks = [...this.cronJobs.values()].map((job) => ({
+          id: job.id,
+          schedule: job.schedule,
+          prompt: job.prompt,
+          sessionId: job.sessionId,
+        }));
+        return { tasks };
+      },
+      removeTask: async (taskId) => {
+        return { ok: this.cronJobs.delete(taskId) };
       },
       resetSession: async (sessionId) => {
         const { platform, channel, user } = parseSessionKey(sessionId);

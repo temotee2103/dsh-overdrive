@@ -2,7 +2,8 @@ import { createServer, type Server as HttpServer, type IncomingMessage, type Ser
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, WebSocket } from 'ws';
 import type {
-  HealthResponse, ResetSessionResponse, ResolveApprovalResponse, SendMessageRequest, SendMessageResponse, ServerEvent,
+  HealthResponse, ListTasksResponse, RemoveTaskResponse, ResetSessionResponse, ResolveApprovalResponse,
+  SendMessageRequest, SendMessageResponse, ServerEvent,
   TaskResponse, UpsertSessionResponse,
 } from './protocol.js';
 
@@ -11,6 +12,8 @@ export interface ProtocolHandlers {
   sendMessage(sessionId: string, req: SendMessageRequest): Promise<SendMessageResponse>;
   resolveApproval(reqId: string, decision: 'approve' | 'reject'): Promise<ResolveApprovalResponse>;
   createTask(req: { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string }): Promise<TaskResponse>;
+  listTasks(): Promise<ListTasksResponse>;
+  removeTask(taskId: string): Promise<RemoveTaskResponse>;
   resetSession(sessionId: string): Promise<ResetSessionResponse>;
 }
 
@@ -118,6 +121,14 @@ export class ProtocolServer {
       if (req.method === 'POST' && parts[0] === 'v1' && parts[1] === 'tasks' && parts.length === 2) {
         const body = (await readJson(req)) as { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string };
         send(200, await this.handlers.createTask(body));
+        return;
+      }
+      if (req.method === 'GET' && parts[0] === 'v1' && parts[1] === 'tasks' && parts.length === 2) {
+        send(200, await this.handlers.listTasks());
+        return;
+      }
+      if (req.method === 'DELETE' && parts[0] === 'v1' && parts[1] === 'tasks' && parts[2] && parts.length === 3) {
+        send(200, await this.handlers.removeTask(decodeURIComponent(parts[2])));
         return;
       }
       if (req.method === 'POST' && parts[0] === 'v1' && parts[1] === 'sessions' && parts[2] && parts[3] === 'reset') {

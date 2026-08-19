@@ -31,6 +31,10 @@ export interface ResolveApprovalResponse { ok: boolean; }
 export interface TaskRequest { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string; }
 export interface TaskResponse { taskId: string; }
 
+export interface CronTaskSummary { id: string; schedule: string; prompt: string; sessionId: string; }
+export interface ListTasksResponse { tasks: CronTaskSummary[]; }
+export interface RemoveTaskResponse { ok: boolean; }
+
 export interface ResetSessionRequest { /* 空 */ }
 export interface ResetSessionResponse { ok: boolean }
 

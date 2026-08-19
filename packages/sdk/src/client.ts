@@ -1,6 +1,7 @@
 import { WebSocket } from 'ws';
 import type {
-  HealthResponse, ResetSessionResponse, ResolveApprovalRequest, ResolveApprovalResponse, SendMessageRequest,
+  HealthResponse, ListTasksResponse, RemoveTaskResponse, ResetSessionResponse, ResolveApprovalRequest,
+  ResolveApprovalResponse, SendMessageRequest,
   SendMessageResponse, ServerEvent, TaskRequest, TaskResponse,
   UpsertSessionRequest, UpsertSessionResponse,
 } from './protocol.js';
@@ -44,6 +45,16 @@ export class GatewayClient {
 
   createTask(req: TaskRequest): Promise<TaskResponse> {
     return this.request('POST', '/v1/tasks', req);
+  }
+
+  /** 列出已注册的 cron 定时任务。 */
+  listTasks(): Promise<ListTasksResponse> {
+    return this.request('GET', '/v1/tasks');
+  }
+
+  /** 删除一个 cron 定时任务；不存在的 id 返回 { ok: false }。 */
+  removeTask(taskId: string): Promise<RemoveTaskResponse> {
+    return this.request('DELETE', `/v1/tasks/${encodeURIComponent(taskId)}`);
   }
 
   /** 重置会话：销毁 agent 实例并清空 live 映射（/new 命令走这里）。 */

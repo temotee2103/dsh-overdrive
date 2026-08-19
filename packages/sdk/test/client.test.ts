@@ -21,6 +21,8 @@ describe('GatewayClient', () => {
       },
       async resolveApproval(_reqId, decision) { return { ok: decision === 'approve' }; },
       async createTask() { return { taskId: 'task-1' }; },
+      async listTasks() { return { tasks: [{ id: 'cron-1', schedule: '0 8 * * *', prompt: '每日汇报', sessionId: 'cli:cli:local' }] }; },
+      async removeTask(taskId) { return { ok: taskId === 'cron-1' }; },
       async resetSession() { return { ok: true }; },
     };
     server = new ProtocolServer({ token: TOKEN, handlers });
@@ -57,6 +59,20 @@ describe('GatewayClient', () => {
     const client = await start();
     const res = await client.resetSession('cli:cli:local');
     expect(res).toEqual({ ok: true });
+  });
+
+  it('listTasks 列出 cron 任务', async () => {
+    const client = await start();
+    const res = await client.listTasks();
+    expect(res.tasks).toEqual([
+      { id: 'cron-1', schedule: '0 8 * * *', prompt: '每日汇报', sessionId: 'cli:cli:local' },
+    ]);
+  });
+
+  it('removeTask 删除存在的任务并如实报告缺失', async () => {
+    const client = await start();
+    expect(await client.removeTask('cron-1')).toEqual({ ok: true });
+    expect(await client.removeTask('cron-missing')).toEqual({ ok: false });
   });
 
   it('错误 token 抛错', async () => {

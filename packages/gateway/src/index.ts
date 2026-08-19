@@ -96,6 +96,21 @@ async function handleCommand(
       await adapter.send(chatId, { text: '⏰ 定时任务已注册' });
       return;
     }
+    case 'crons': {
+      const res = await client.listTasks();
+      const text = res.tasks.length
+        ? res.tasks.map((task) => `- \`${task.id}\` ${task.schedule} — ${task.prompt}`).join('\n')
+        : '暂无定时任务。';
+      await adapter.send(chatId, { text: `⏰ 定时任务（${res.tasks.length}）:\n${text}` });
+      return;
+    }
+    case 'cronrm': {
+      const res = await client.removeTask(command.taskId);
+      await adapter.send(chatId, {
+        text: res.ok ? `🗑️ 已删除定时任务 \`${command.taskId}\`` : `未找到定时任务 \`${command.taskId}\``,
+      });
+      return;
+    }
     case 'agents': {
       await adapter.send(chatId, { text: '（M4 简化）子任务状态由 agent 汇报，/task 派发' });
       return;

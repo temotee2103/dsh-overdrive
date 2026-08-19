@@ -149,6 +149,32 @@ describe('DshBridge', () => {
     ).rejects.toThrow(/schedule/);
   });
 
+  it('cron 用唯一 id 作键：相同 prompt 可注册多个且互不覆盖', async () => {
+    ctx = await setup();
+    const a = await ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '每日汇报', schedule: '0 8 * * *' });
+    const b = await ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '每日汇报', schedule: '0 9 * * *' });
+    expect(a.taskId).not.toBe(b.taskId);
+    const listed = await ctx.handlers.listTasks!();
+    expect(listed.tasks).toHaveLength(2);
+    expect(listed.tasks.map((t) => t.prompt)).toEqual(['每日汇报', '每日汇报']);
+    expect(listed.tasks.map((t) => t.schedule).sort()).toEqual(['0 8 * * *', '0 9 * * *']);
+  });
+
+  it('listTasks 返回 id/schedule/prompt/sessionId；removeTask 按 id 删除', async () => {
+    ctx = await setup();
+    const res = await ctx.handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '日报', schedule: '0 8 * * *' });
+    const listed = await ctx.handlers.listTasks!();
+    expect(listed.tasks[0]).toMatchObject({
+      id: res.taskId,
+      schedule: '0 8 * * *',
+      prompt: '日报',
+      sessionId: 'cli:cli:local',
+    });
+    expect(await ctx.handlers.removeTask!(res.taskId)).toEqual({ ok: true });
+    expect(await ctx.handlers.listTasks!()).toEqual({ tasks: [] });
+    expect(await ctx.handlers.removeTask!('cron-missing')).toEqual({ ok: false });
+  });
+
   it('sendMessage 带 media 时 buildUserMessage 收到 media（image → content block）', async () => {
     ctx = await setup();
     await ctx.handlers.sendMessage!('cli:cli:local', { text: '看图', media: { kind: 'image', url: 'https://x/y.png' } });

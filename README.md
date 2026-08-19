@@ -129,6 +129,8 @@ No terminal skills needed. dsh-overdrive is designed to be **installed by one pe
 | `/trace` | Replay the latest turn's trajectory (thoughts + tool calls) |
 | `/task <prompt>` | Spawn a subagent |
 | `/cron <min hour dom mon dow> <prompt>` | Schedule a recurring job (built-in 5-field scheduler) |
+| `/crons` | List scheduled cron jobs |
+| `/cronrm <task-id>` | Delete a scheduled cron job |
 | `/agents` | Subagent status (simplified) |
 | `/new` | Reset the conversation |
 
