@@ -47,6 +47,42 @@ export function matchNumberedButton(text: string, buttons: OutboundButton[]): Ou
   return buttons[n - 1];
 }
 
+/** 按钮 id（"approve:<reqId>" / "reject:<reqId>"）→ 卡片按钮 value。 */
+export function buttonValue(button: OutboundButton): { action: string; reqId: string } {
+  const idx = button.id.indexOf(':');
+  return {
+    action: idx >= 0 ? button.id.slice(0, idx) : button.id,
+    reqId: idx >= 0 ? button.id.slice(idx + 1) : '',
+  };
+}
+
+/** 交互卡片 JSON（msg_type: interactive）。原生按钮点击走 card.action.trigger 回调。 */
+export function buildApprovalCard(text: string, buttons: OutboundButton[]): string {
+  const actions = buttons.map((b) => ({
+    tag: 'button',
+    text: { tag: 'plain_text', content: b.label },
+    type: b.id.startsWith('approve:') ? 'primary' : 'default',
+    value: buttonValue(b),
+  }));
+  const card = {
+    config: { wide_screen_mode: true },
+    header: { title: { tag: 'plain_text', content: text.slice(0, 60) }, template: 'blue' },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content: text } },
+      { tag: 'action', actions },
+    ],
+  };
+  return JSON.stringify(card);
+}
+
+/** 卡片回调 value → 按钮 id（"approve:<reqId>"）；缺字段返回 null。 */
+export function cardActionToButtonId(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const { action, reqId } = value as { action?: unknown; reqId?: unknown };
+  if ((action !== 'approve' && action !== 'reject') || typeof reqId !== 'string' || !reqId) return null;
+  return `${action}:${reqId}`;
+}
+
 // ── 适配器 ────────────────────────────────────────────────────
 
 export interface FeishuAdapterOptions {
@@ -86,6 +122,11 @@ export class FeishuAdapter implements Adapter {
         }
         this.messageCb?.(normalized);
       },
+      // 原生交互卡片按钮回调 → 审批应答（Roadmap v0.2）
+      'card.action.trigger': async (data: { action?: { value?: unknown } }) => {
+        const buttonId = cardActionToButtonId(data?.action?.value);
+        if (buttonId) this.replyCb?.(buttonId);
+      },
     });
     this.ws = new WSClient({
       appId: this.opts.appId,
@@ -98,7 +139,23 @@ export class FeishuAdapter implements Adapter {
   }
 
   async send(chatId: string, payload: OutboundPayload): Promise<void> {
-    if (payload.buttons?.length) this.pendingButtons.set(chatId, payload.buttons);
+    if (payload.buttons?.length) {
+      this.pendingButtons.set(chatId, payload.buttons); // 卡片之外仍支持编号回复兜底
+      const content = buildApprovalCard(payload.text, payload.buttons);
+      const messageId = this.lastMessageIds.get(chatId);
+      if (messageId) {
+        await this.client.im.message.reply({
+          path: { message_id: messageId },
+          data: { msg_type: 'interactive', content },
+        });
+      } else {
+        await this.client.im.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: { receive_id: chatId, msg_type: 'interactive', content },
+        });
+      }
+      return;
+    }
     const text = buildNumberedText(payload.text, payload.buttons ?? []);
     const content = JSON.stringify({ text });
     const messageId = this.lastMessageIds.get(chatId);

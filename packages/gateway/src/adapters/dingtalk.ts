@@ -1,6 +1,6 @@
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
 import { PendingButtons } from '../pending-buttons.js';
-import { DWClient, TOPIC_ROBOT, type RobotMessage } from 'dingtalk-stream-sdk-nodejs';
+import { DWClient, TOPIC_CARD, TOPIC_ROBOT, type RobotMessage } from 'dingtalk-stream-sdk-nodejs';
 
 // dingtalk-stream-sdk-nodejs@2.0.4 实测：exports 提供 DWClient + TOPIC_ROBOT
 // （/v1.0/im/bot/messages/get）；回调 registerCallbackListener(TOPIC_ROBOT, (msg) => …)，
@@ -42,6 +42,61 @@ export function matchNumberedButton(text: string, buttons: OutboundButton[]): Ou
   return buttons[n - 1];
 }
 
+/** 按钮 id（"approve:<reqId>" / "reject:<reqId>"）→ 卡片回调载荷 JSON 字符串。 */
+export function buttonCallbackData(button: OutboundButton): string {
+  const idx = button.id.indexOf(':');
+  return JSON.stringify({
+    action: idx >= 0 ? button.id.slice(0, idx) : button.id,
+    reqId: idx >= 0 ? button.id.slice(idx + 1) : '',
+  });
+}
+
+/** 钉钉 actionCard 消息体（Roadmap v0.2）。按钮回调经 TOPIC_CARD 走 Stream 返回。 */
+export function buildActionCard(text: string, buttons: OutboundButton[]): {
+  msgtype: 'actionCard';
+  actionCard: { title: string; text: string; btnOrientation: string; btns: Array<{ title: string; actionURL: string }> };
+} {
+  return {
+    msgtype: 'actionCard',
+    actionCard: {
+      title: '需要批准',
+      text,
+      btnOrientation: '1',
+      btns: buttons.map((b) => ({
+        title: b.label,
+        actionURL: `dingtalk://dingtalkclient/action/openapp?cardCallbackData=${encodeURIComponent(buttonCallbackData(b))}`,
+      })),
+    },
+  };
+}
+
+/**
+ * 钉钉卡片回调载荷 → 按钮 id（"approve:<reqId>"）。
+ * Stream 模式下回调 JSON 的字段名（cardCallbackData / params / cardActionData）在不同卡片版本有差异，
+ * 这里做多路径深度兜底解析；真机验证后可按实际字段收敛。找不到返回 null。
+ */
+export function parseCardCallback(raw: unknown): string | null {
+  const visit = (obj: unknown, depth: number): string | null => {
+    if (depth > 5 || !obj || typeof obj !== 'object') return null;
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      if (typeof value === 'string' && (key === 'cardCallbackData' || key === 'params' || key === 'cardActionData')) {
+        try {
+          const parsed = JSON.parse(value) as { action?: string; reqId?: string };
+          if ((parsed.action === 'approve' || parsed.action === 'reject') && typeof parsed.reqId === 'string' && parsed.reqId) {
+            return `${parsed.action}:${parsed.reqId}`;
+          }
+        } catch {
+          /* 该字段不是 JSON 载荷，继续往下找 */
+        }
+      }
+      const found = visit(value, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  };
+  return visit(raw, 0);
+}
+
 // ── 适配器 ────────────────────────────────────────────────────
 
 export interface DingTalkAdapterOptions {
@@ -81,6 +136,17 @@ export class DingTalkAdapter implements Adapter {
       }
       this.messageCb?.({ chatId: parsed.chatId, userId: parsed.userId, text: parsed.text });
     });
+    // 原生 actionCard 按钮回调（Stream 模式，Roadmap v0.2）
+    client.registerCallbackListener(TOPIC_CARD, (msg) => {
+      let data: unknown;
+      try {
+        data = JSON.parse(msg.data) as unknown;
+      } catch {
+        return;
+      }
+      const buttonId = parseCardCallback(data);
+      if (buttonId) this.replyCb?.(buttonId);
+    });
     await client.connect();
     this.connected = true;
     console.log('[dingtalk] 钉钉 Stream 已连接');
@@ -89,7 +155,19 @@ export class DingTalkAdapter implements Adapter {
   async send(chatId: string, payload: OutboundPayload): Promise<void> {
     const webhook = this.webhooks.get(chatId);
     if (!webhook) throw new Error(`钉钉会话 ${chatId} 无可用 sessionWebhook（先让用户发一条消息）`);
-    if (payload.buttons?.length) this.pendingButtons.set(chatId, payload.buttons);
+    if (payload.buttons?.length) {
+      this.pendingButtons.set(chatId, payload.buttons); // 卡片之外仍支持编号回复兜底
+      const res = await fetch(webhook, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(buildActionCard(payload.text, payload.buttons)),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`钉钉回发失败 ${res.status}: ${body.slice(0, 200)}`);
+      }
+      return;
+    }
     const text = buildNumberedText(payload.text, payload.buttons ?? []);
     const res = await fetch(webhook, {
       method: 'POST',

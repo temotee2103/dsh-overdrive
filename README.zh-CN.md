@@ -178,7 +178,8 @@ npm run e2e        # 全链路 mock E2E（消息 / 审批 / 白名单）
 - [x] M3：飞书 / 钉钉 / 企业微信
 - [x] M4：轨迹卡片、`/task` `/cron`、流式打字、图片收发、WhatsApp 原生审批按钮
 - [x] M5：docker-compose 一键部署、Web 控制台、MIT + CI、npm 分发
-- [ ] v0.2：个人微信（实验性）、语音转写 ASR、飞书/钉钉原生卡片
+- [x] v0.2a：语音转写 ASR（OpenAI 兼容端点，`ASR_API_KEY`）、飞书原生交互审批卡片、钉钉 actionCard 审批
+- [ ] v0.2b：个人微信（实验性）
 
 ## 开源协议
 

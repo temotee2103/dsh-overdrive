@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildReplyBody, parseBotMessage } from '../src/adapters/dingtalk.js';
+import { buildActionCard, buildReplyBody, buttonCallbackData, parseBotMessage, parseCardCallback } from '../src/adapters/dingtalk.js';
 
 describe('parseBotMessage（RobotMessage → NormalizedMessage）', () => {
   it('文本消息', () => {
@@ -21,5 +21,38 @@ describe('parseBotMessage（RobotMessage → NormalizedMessage）', () => {
 describe('buildReplyBody（sessionWebhook 回发载荷）', () => {
   it('文本消息体', () => {
     expect(buildReplyBody('hi')).toEqual({ msgtype: 'text', text: { content: 'hi' } });
+  });
+});
+
+describe('buildActionCard（钉钉 actionCard）', () => {
+  it('生成带 cardCallbackData 的按钮', () => {
+    const card = buildActionCard('需要批准', [
+      { id: 'approve:r1', label: '✅ 同意' },
+      { id: 'reject:r1', label: '🚫 拒绝' },
+    ]);
+    expect(card.msgtype).toBe('actionCard');
+    expect(card.actionCard.btns).toHaveLength(2);
+    expect(card.actionCard.btns[0].actionURL).toContain('cardCallbackData=');
+    expect(decodeURIComponent(card.actionCard.btns[0].actionURL.split('cardCallbackData=')[1])).toBe('{"action":"approve","reqId":"r1"}');
+  });
+});
+
+describe('parseCardCallback（TOPIC_CARD 回调载荷 → 按钮 id）', () => {
+  it('识别 cardCallbackData 字段', () => {
+    expect(parseCardCallback({ cardPrivateData: { cardCallbackData: '{"action":"approve","reqId":"r1"}' } })).toBe('approve:r1');
+  });
+  it('识别 params / cardActionData 字段与嵌套结构', () => {
+    expect(parseCardCallback({ cardPrivateData: { params: '{"action":"reject","reqId":"r9"}' } })).toBe('reject:r9');
+    expect(parseCardCallback({ a: { b: { cardActionData: '{"action":"approve","reqId":"x"}' } } })).toBe('approve:x');
+  });
+  it('非法载荷返回 null', () => {
+    expect(parseCardCallback(null)).toBeNull();
+    expect(parseCardCallback({ cardPrivateData: { cardCallbackData: 'not-json' } })).toBeNull();
+    expect(parseCardCallback({ cardPrivateData: { cardCallbackData: '{"action":"other","reqId":"r1"}' } })).toBeNull();
+    expect(parseCardCallback({ cardPrivateData: { cardCallbackData: '{"action":"approve"}' } })).toBeNull();
+  });
+  it('buttonCallbackData 与 parseCardCallback 往返一致', () => {
+    const data = buttonCallbackData({ id: 'reject:r7', label: 'x' });
+    expect(parseCardCallback({ cardPrivateData: { cardCallbackData: data } })).toBe('reject:r7');
   });
 });

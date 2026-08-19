@@ -178,7 +178,8 @@ npm run e2e        # full-stack mock E2E (message / approval / allowlist)
 - [x] M3: 飞书 / 钉钉 / 企业微信
 - [x] M4: trajectory cards, `/task` `/cron`, streaming typing, media, WhatsApp native buttons
 - [x] M5: docker-compose, web console, MIT + CI, npm distribution
-- [ ] v0.2: personal WeChat (experimental), ASR voice transcription, Feishu/DingTalk native cards
+- [x] v0.2a: ASR voice transcription (OpenAI-compatible endpoint, `ASR_API_KEY`), Feishu interactive approval cards, DingTalk actionCard approval
+- [ ] v0.2b: personal WeChat (experimental)
 
 ## License
 
