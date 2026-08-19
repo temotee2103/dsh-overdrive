@@ -10,8 +10,8 @@ export interface RawTelegramMessage {
     text?: string;
     caption?: string;
     photo?: Array<{ file_id?: string }>;
-    voice?: { file_id?: string };
-    audio?: { file_id?: string };
+    voice?: { file_id?: string; mime_type?: string };
+    audio?: { file_id?: string; mime_type?: string };
     video?: { file_id?: string };
     document?: { file_id?: string };
   };
@@ -20,6 +20,16 @@ export interface RawTelegramMessage {
 /** 纯函数：取 photo 数组最后一张（最大尺寸）的 file_id；无图返回 undefined。 */
 export function telegramPhotoFileId(photo: Array<{ file_id?: string }>): string | undefined {
   return photo[photo.length - 1]?.file_id;
+}
+
+/** 纯函数：语音消息的 file_id（voice 或 audio）；无返回 undefined。 */
+export function telegramVoiceFileId(raw: RawTelegramMessage): string | undefined {
+  return raw.message?.voice?.file_id ?? raw.message?.audio?.file_id;
+}
+
+/** 纯函数：语音消息的 MIME（voice 优先，audio 兜底）。 */
+export function telegramVoiceMime(raw: RawTelegramMessage): string | undefined {
+  return raw.message?.voice?.mime_type ?? raw.message?.audio?.mime_type;
 }
 
 /** 纯函数：Telegram 文件下载 URL 模板。file_path 需 getFile(file_id) 换取（真实调用在 adapter 薄层）。 */
@@ -34,7 +44,9 @@ export function normalizeTelegramMessage(raw: RawTelegramMessage): NormalizedMes
   const text = msg.text ?? msg.caption ?? '';
   let media: NormalizedMessage['media'];
   if (msg.photo?.length) media = { kind: 'image' }; // url 由 adapter getFile 薄层填充
-  else if (msg.voice || msg.audio) media = { kind: 'voice' };
+  else if (msg.voice || msg.audio) {
+    media = { kind: 'voice', mime: telegramVoiceMime(raw) }; // url 由 adapter getFile 薄层填充（ASR 用）
+  }
   else if (msg.video) media = { kind: 'video' };
   else if (msg.document) media = { kind: 'file' };
   if (!text && !media) return null;
@@ -80,11 +92,16 @@ export class TelegramAdapter implements Adapter {
     void this.bot.start(); // 长轮询（自托管无需 webhook）
   }
 
-  /** 薄层：photo → getFile(file_id) 换 file_path → 下载 URL 填充 msg.media.url（纯函数只做模板）。 */
+  /** 薄层：photo/voice/audio → getFile(file_id) 换 file_path → 下载 URL 填充 msg.media.url（纯函数只做模板）。 */
   private async handleMessage(raw: RawTelegramMessage): Promise<void> {
     const msg = normalizeTelegramMessage(raw);
     if (!msg) return;
-    const fileId = msg.media?.kind === 'image' ? telegramPhotoFileId(raw.message?.photo ?? []) : undefined;
+    const fileId =
+      msg.media?.kind === 'image'
+        ? telegramPhotoFileId(raw.message?.photo ?? [])
+        : msg.media?.kind === 'voice'
+          ? telegramVoiceFileId(raw)
+          : undefined;
     if (fileId) {
       try {
         const file = await this.bot.api.getFile(fileId);

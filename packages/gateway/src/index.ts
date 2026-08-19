@@ -6,6 +6,7 @@ import { CliAdapter } from './adapters/cli.js';
 import { parseCommand, HELP_TEXT, type ParsedCommand } from './commands.js';
 import { TrajectoryAggregator, formatTrajectorySummary } from './trajectory.js';
 import { createStatusServer } from './status.js';
+import { createTranscriber, type AsrTranscriber } from './asr.js';
 
 /**
  * message.delta → 打字指示去重：同一 turn 内首个 delta 触发一次 typing，
@@ -64,6 +65,8 @@ export function planOutbound(ev: ServerEvent): { payload: OutboundPayload } | nu
 
 export interface WireOptions {
   allowlist: string[];
+  /** ASR 转写器；配置了 API key 时启用，语音消息转成文本再发给 agent。 */
+  asr?: AsrTranscriber;
 }
 
 /** 命令面分发：/trace /new /task /cron /agents /help（M4）。 */
@@ -150,6 +153,16 @@ export async function wireAdapter(
         return;
       }
 
+      // ASR 语音转写：配置了 API key 时把语音消息转成文本；失败/未配置走原降级路径
+      if (msg.media?.kind === 'voice' && opts.asr?.enabled) {
+        const transcript = await opts.asr.transcribe(msg.media);
+        if (transcript) {
+          msg.text = msg.text ? `${msg.text}\n[语音转写] ${transcript}` : `[语音转写] ${transcript}`;
+          msg.media = undefined;
+          console.log(`[gateway][${adapter.id}] 语音转写: ${transcript.slice(0, 60)}`);
+        }
+      }
+
       await client.upsertSession({ platform: adapter.id, channel: msg.chatId, user: msg.userId });
       console.log(`[gateway][${adapter.id}] upsertSession OK -> ${key}`);
       await client.sendMessage(key, { text: msg.text, media: msg.media });
@@ -210,6 +223,12 @@ async function main(): Promise<void> {
     .split(',').map((s) => s.trim()).filter(Boolean);
   const adapterIds = parseAdapterIds(process.env.GATEWAY_ADAPTERS ?? 'cli');
   const env = adapterEnvFromProcess();
+  const asr = createTranscriber({
+    apiKey: env.asrApiKey,
+    baseUrl: env.asrBaseUrl,
+    model: env.asrModel,
+  });
+  if (asr.enabled) console.log('[gateway] ASR 语音转写已启用');
 
   const client = new GatewayClient(dshBaseUrl, dshToken);
   await client.health(); // 确认 DSH 侧（或 mock）活着
@@ -217,7 +236,7 @@ async function main(): Promise<void> {
   const adapters: Adapter[] = adapterIds.map((id) => createAdapter(id, env));
   for (const adapter of adapters) {
     await adapter.connect();
-    await wireAdapter(adapter, client, { allowlist });
+    await wireAdapter(adapter, client, { allowlist, asr });
     console.log(`[gateway] ${adapter.id} 适配器已就绪`);
   }
 

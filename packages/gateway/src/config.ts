@@ -25,6 +25,9 @@ export interface AdapterEnv {
   wecomToken?: string;
   wecomEncodingAESKey?: string;
   wecomCallbackPort?: string;
+  asrApiKey?: string;
+  asrBaseUrl?: string;
+  asrModel?: string;
 }
 
 export function parseAdapterIds(raw: string): string[] {
@@ -86,5 +89,8 @@ export function adapterEnvFromProcess(env: NodeJS.ProcessEnv = process.env): Ada
     wecomToken: env.WECOM_TOKEN,
     wecomEncodingAESKey: env.WECOM_ENCODING_AES_KEY,
     wecomCallbackPort: env.WECOM_CALLBACK_PORT,
+    asrApiKey: env.ASR_API_KEY,
+    asrBaseUrl: env.ASR_BASE_URL,
+    asrModel: env.ASR_MODEL,
   };
 }
