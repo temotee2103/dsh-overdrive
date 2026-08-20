@@ -229,7 +229,7 @@ export async function wireAdapter(
 
 async function main(): Promise<void> {
   const dshBaseUrl = process.env.DSH_BASE_URL ?? 'http://127.0.0.1:3191';
-  const dshToken = process.env.DSH_TOKEN ?? 'dev-token';
+  const dshToken = process.env.DSH_OVERDRIVE_TOKEN ?? process.env.DSH_TOKEN ?? 'dev-token';
   const allowlist = (process.env.ALLOWLIST ?? '')
     .split(',').map((s) => s.trim()).filter(Boolean);
   const allowAll = process.env.ALLOW_ALL === '1';

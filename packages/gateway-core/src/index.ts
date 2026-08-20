@@ -23,7 +23,11 @@ export interface GatewayCoreConfig {
  * 返回 `{ server, ready }` 供测试与上层复用。
  */
 export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}) {
-  const token = rawConfig.token ?? 'dev-token';
+  // 安全边界：不允许内置默认 token（评审意见 #1191-3）。必须显式配置，否则拒绝启动。
+  const token = rawConfig.token ?? process.env.DSH_OVERDRIVE_TOKEN;
+  if (!token) {
+    throw new Error('gateway-core 需要配置 token（config.token 或环境变量 DSH_OVERDRIVE_TOKEN）；未配置拒绝启动');
+  }
   const port = rawConfig.port ?? 3192;
   const approvalTimeoutMs = rawConfig.approvalTimeoutMs ?? 120_000;
 
@@ -44,6 +48,6 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}) {
     void server.close();
   });
 
-  console.log(`[dsh-overdrive-gateway-core] loaded, protocol server on 127.0.0.1:${port} (token: ${token === 'dev-token' ? 'dev-token' : '***'})`);
+  console.log(`[dsh-overdrive-gateway-core] loaded, protocol server on 127.0.0.1:${port} (token: ***)`);
   return { server, ready, bridge };
 }
