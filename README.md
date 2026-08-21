@@ -11,6 +11,7 @@
 [![DSH](https://img.shields.io/badge/DSH-0.1.0--rc.6-blueviolet)](https://github.com/deepseek-ai/DeepSeek-Harness)
 [![npm](https://img.shields.io/npm/v/@dsh-overdrive/gateway-core)](https://www.npmjs.com/package/@dsh-overdrive/gateway-core)
 [![Platforms](https://img.shields.io/badge/platforms-8-green)](#supported-platforms)
+[![Listed in awesome-dsh-plugin](https://img.shields.io/badge/listed%20in-awesome--dsh--plugin-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
 ---
 
