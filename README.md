@@ -182,6 +182,20 @@ npm run e2e        # full-stack mock E2E (message / approval / allowlist)
 - [x] v0.2a: ASR voice transcription (OpenAI-compatible endpoint, `ASR_API_KEY`), Feishu interactive approval cards, DingTalk actionCard approval
 - [ ] v0.2b: personal WeChat (experimental)
 
+## 📚 Listings
+
+Listed in community indexes and curated lists:
+
+| List | Entry |
+| --- | --- |
+| [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) (community pick) | `dsh-overdrive#gateway-core` |
+| [dsh-index](https://github.com/Sunrisepeak/dsh-index) (official plugin index) | `dsh-overdrive` |
+| [0xsline/awesome-deepseek-harness](https://github.com/0xsline/awesome-deepseek-harness) | `dsh-overdrive` |
+| [Dominic789654/awesome-deepseek-harness](https://github.com/Dominic789654/awesome-deepseek-harness) | `dsh-overdrive` |
+| [imsai-sh/awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins) | `dsh-overdrive` |
+| [Anil-matcha/awesome-dsh-plugin](https://github.com/Anil-matcha/awesome-dsh-plugin) | `dsh-overdrive` |
+| [losebird/dsh-plugin-market](https://github.com/losebird/dsh-plugin-market) | `dsh-overdrive` |
+
 ## License
 
 [MIT](LICENSE) © dsh-overdrive contributors

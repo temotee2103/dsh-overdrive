@@ -182,6 +182,20 @@ npm run e2e        # 全链路 mock E2E（消息 / 审批 / 白名单）
 - [x] v0.2a：语音转写 ASR（OpenAI 兼容端点，`ASR_API_KEY`）、飞书原生交互审批卡片、钉钉 actionCard 审批
 - [ ] v0.2b：个人微信（实验性）
 
+## 📚 收录情况
+
+已被社区索引与精选列表收录：
+
+| 列表 | 收录内容 |
+| --- | --- |
+| [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)（社区精选） | `dsh-overdrive#gateway-core` |
+| [dsh-index](https://github.com/Sunrisepeak/dsh-index)（官方插件索引） | `dsh-overdrive` |
+| [0xsline/awesome-deepseek-harness](https://github.com/0xsline/awesome-deepseek-harness) | `dsh-overdrive` |
+| [Dominic789654/awesome-deepseek-harness](https://github.com/Dominic789654/awesome-deepseek-harness) | `dsh-overdrive` |
+| [imsai-sh/awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins) | `dsh-overdrive` |
+| [Anil-matcha/awesome-dsh-plugin](https://github.com/Anil-matcha/awesome-dsh-plugin) | `dsh-overdrive` |
+| [losebird/dsh-plugin-market](https://github.com/losebird/dsh-plugin-market) | `dsh-overdrive` |
+
 ## 开源协议
 
 [MIT](LICENSE) © dsh-overdrive contributors
