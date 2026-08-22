@@ -102,6 +102,14 @@ export class SlackAdapter implements Adapter {
   }
 
   async send(chatId: string, payload: OutboundPayload): Promise<void> {
+    if (payload.media) {
+      await this.app.client.files.uploadV2({
+        channel_id: chatId,
+        file: payload.media.path,
+        filename: payload.media.caption ?? payload.media.path.split('/').pop(),
+      });
+      return;
+    }
     await this.app.client.chat.postMessage({
       channel: chatId,
       text: payload.text,

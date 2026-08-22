@@ -102,6 +102,13 @@ export class DiscordAdapter implements Adapter {
       console.error(`[discord] 无法向 ${chatId} 发送（channel 不可用）`);
       return;
     }
+    if (payload.media) {
+      await (channel as { send: (o: unknown) => Promise<unknown> }).send({
+        content: payload.text,
+        files: [payload.media.path],
+      });
+      return;
+    }
     if (payload.buttons?.length) {
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         payload.buttons.map((b) =>

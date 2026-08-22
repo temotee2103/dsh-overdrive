@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard } from 'grammy';
+import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
 
 // ── 纯函数 ────────────────────────────────────────────────────
@@ -118,6 +118,15 @@ export class TelegramAdapter implements Adapter {
   }
 
   async send(chatId: string, payload: OutboundPayload): Promise<void> {
+    if (payload.media) {
+      const file = new InputFile(payload.media.path);
+      if (payload.media.kind === 'image') {
+        await this.bot.api.sendPhoto(chatId, file, { caption: payload.media.caption ?? '' });
+      } else {
+        await this.bot.api.sendDocument(chatId, file, { caption: payload.media.caption ?? '' });
+      }
+      return;
+    }
     if (payload.buttons?.length) {
       const kb = new InlineKeyboard();
       for (const [label, id] of buttonRows(payload.buttons)) kb.text(label, id);

@@ -7,9 +7,18 @@ export interface NormalizedMessage {
 
 export interface OutboundButton { id: string; label: string; }
 
+/** 出站媒体（/send 等）：path 为本地文件路径。 */
+export interface OutboundMedia {
+  kind: 'image' | 'file' | 'voice';
+  path: string;
+  caption?: string;
+}
+
 export interface OutboundPayload {
   text: string;
   buttons?: OutboundButton[];
+  /** 可选：随消息发送的本地媒体文件；不支持媒体的适配器忽略并只发文本。 */
+  media?: OutboundMedia;
 }
 
 /** 按钮回执的点击者身份（用于白名单校验）。chatId 在个别平台回调中可能缺失，缺失时按未授权处理（fail-closed）。 */

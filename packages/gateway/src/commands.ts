@@ -10,7 +10,9 @@ export type ParsedCommand =
   | { kind: 'remember'; text: string }
   | { kind: 'recall'; query: string }
   | { kind: 'forget'; memoryId: string }
-  | { kind: 'remind'; text: string; inMinutes: number | null; atTime: string | null };
+  | { kind: 'remind'; text: string; inMinutes: number | null; atTime: string | null }
+  | { kind: 'send'; path: string }
+  | { kind: 'status' };
 
 // cron 语法：/cron <分 时 日 月 周> <需求>（schedule 为 5 个空白分隔字段）
 const CRON_RE = /^\/cron\s+(\S+\s+\S+\s+\S+\s+\S+\s+\S+)\s+(.+)$/;
@@ -25,6 +27,7 @@ export function parseCommand(text: string): ParsedCommand | null {
   if (trimmed === '/agents') return { kind: 'agents' };
   if (trimmed === '/help') return { kind: 'help' };
   if (trimmed === '/crons') return { kind: 'crons' };
+  if (trimmed === '/status') return { kind: 'status' };
   const task = trimmed.match(/^\/task\s+(.+)$/);
   if (task) return { kind: 'task', prompt: task[1] };
   const cron = trimmed.match(CRON_RE);
@@ -46,6 +49,8 @@ export function parseCommand(text: string): ParsedCommand | null {
   }
   const remindAt = trimmed.match(REMIND_AT_RE);
   if (remindAt) return { kind: 'remind', text: remindAt[2], inMinutes: null, atTime: remindAt[1] };
+  const send = trimmed.match(/^\/send\s+(.+)$/);
+  if (send) return { kind: 'send', path: send[1].trim() };
   return null;
 }
 
@@ -60,6 +65,8 @@ export const HELP_TEXT = [
   '/remember <事实> — 记住关于我的事',
   '/recall <关键词> — 回忆相关记忆',
   '/forget <记忆id> — 删除一条记忆',
+  '/send <文件路径> — 把本地文件/图片发到当前聊天',
+  '/status — 查看运行状态',
   '/agents — 查看子任务状态',
   '/new — 重置会话',
 ].join('\n');

@@ -137,6 +137,8 @@ No terminal skills needed. dsh-overdrive is designed to be **installed by one pe
 | `/remember <fact>` | Remember something about the user (long-term memory) |
 | `/recall <query>` | Recall relevant memories |
 | `/forget <memory-id>` | Delete a memory |
+| `/send <path>` | Send a local file/image into this chat |
+| `/status` | Adapter / memory / cron status overview |
 | `/agents` | Subagent status (simplified) |
 | `/new` | Reset the conversation |
 

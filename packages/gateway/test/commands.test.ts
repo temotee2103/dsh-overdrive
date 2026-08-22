@@ -35,4 +35,9 @@ describe('parseCommand', () => {
     expect(parseCommand('/remind in 1 day 汇报')).toEqual({ kind: 'remind', text: '汇报', inMinutes: 1440, atTime: null });
     expect(parseCommand('/remind at 14:30 开会')).toEqual({ kind: 'remind', text: '开会', inMinutes: null, atTime: '14:30' });
   });
+  it('识别 /send 与 /status', () => {
+    expect(parseCommand('/send /tmp/report.png')).toEqual({ kind: 'send', path: '/tmp/report.png' });
+    expect(parseCommand('/status')).toEqual({ kind: 'status' });
+    expect(parseCommand('/send')).toBeNull(); // 缺路径
+  });
 });

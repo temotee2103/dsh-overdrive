@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { basename } from 'node:path';
 import { GatewayClient, type ServerEvent } from '@dsh-overdrive/sdk';
 import type { Adapter, OutboundPayload } from './adapter.js';
 import { Allowlist, buildSessionKey } from './session.js';
@@ -87,6 +89,14 @@ export function remindSchedule(minutes: number, atTime: string | null, now = new
   return `${target.getMinutes()} ${target.getHours()} ${target.getDate()} ${target.getMonth() + 1} *`;
 }
 
+/** 纯函数：本地文件路径 → 出站媒体类型（图片/语音/其他文件）。 */
+export function mediaKindFromPath(path: string): 'image' | 'voice' | 'file' {
+  const ext = path.toLowerCase().split('.').pop() ?? '';
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'].includes(ext)) return 'image';
+  if (['ogg', 'oga', 'opus', 'mp3', 'wav', 'webm', 'm4a', 'aac'].includes(ext)) return 'voice';
+  return 'file';
+}
+
 /** 命令面分发：/trace /new /task /cron /agents /help /remind /remember /recall /forget（M4 + v0.3）。 */
 async function handleCommand(
   adapter: Adapter,
@@ -171,6 +181,34 @@ async function handleCommand(
       await client.createTask({ sessionId, kind: 'cron', prompt: `⏰ 提醒：${command.text}`, schedule, once: true });
       await adapter.send(chatId, {
         text: `⏰ 已设置提醒「${command.text}」（${command.atTime ? `at ${command.atTime}` : `${command.inMinutes} 分钟后`}，一次性）`,
+      });
+      return;
+    }
+    case 'send': {
+      // 媒体发送（/send <path>）：读本地文件 → 类型判定 → 交给适配器；不支持的平台降级为文本
+      const path = command.path;
+      if (!existsSync(path)) {
+        await adapter.send(chatId, { text: `❌ 找不到文件：${path}` });
+        return;
+      }
+      await adapter.send(chatId, {
+        text: `📎 ${path}`,
+        media: { kind: mediaKindFromPath(path), path, caption: basename(path) },
+      });
+      return;
+    }
+    case 'status': {
+      const connected = adapter.status?.().connected ?? false;
+      const scope = memoryScope(adapter.id, sessionId.split(':')[2] ?? '');
+      const memCount = memory ? memory.count(scope) : 0;
+      const crons = await client.listTasks();
+      await adapter.send(chatId, {
+        text: [
+          `📊 状态`,
+          `- 适配器 ${adapter.id}: ${connected ? '✅ 已连接' : '❌ 未连接'}`,
+          `- 你的记忆: ${memCount} 条`,
+          `- 定时任务: ${crons.tasks.length} 个`,
+        ].join('\n'),
       });
       return;
     }

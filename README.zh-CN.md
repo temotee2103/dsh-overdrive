@@ -136,6 +136,8 @@ npx dsh-overdrive-gateway                                   # 起 gateway
 | `/remember <事实>` | 记住关于你的事（长期记忆） |
 | `/recall <关键词>` | 回忆相关记忆 |
 | `/forget <记忆id>` | 删除一条记忆 |
+| `/send <文件路径>` | 把本地文件/图片发到当前聊天 |
+| `/status` | 查看适配器/记忆/定时任务状态 |
 | `/agents` | 子任务状态（简化） |
 | `/new` | 重置会话 |
 

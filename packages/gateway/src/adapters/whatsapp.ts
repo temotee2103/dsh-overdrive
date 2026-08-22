@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
@@ -199,6 +200,20 @@ export class WhatsAppAdapter implements Adapter {
 
   async send(chatId: string, payload: OutboundPayload): Promise<void> {
     if (!this.sock) return;
+    if (payload.media) {
+      const { kind, path, caption } = payload.media;
+      const buf = readFileSync(path);
+      if (kind === 'image') {
+        await this.sock.sendMessage(chatId, { image: buf, caption: caption ?? '' } satisfies AnyMessageContent);
+      } else {
+        await this.sock.sendMessage(chatId, {
+          document: buf,
+          fileName: caption ?? path,
+          mimetype: 'application/octet-stream',
+        } satisfies AnyMessageContent);
+      }
+      return;
+    }
     if (payload.buttons?.length) {
       this.pendingButtons.set(chatId, payload.buttons);
       // 原生交互按钮优先：Baileys 6.x 的 AnyMessageContent 无 interactive 键，

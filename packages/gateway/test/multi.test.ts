@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { remindSchedule, wireAdapter } from '../src/index.js';
+import { mediaKindFromPath, remindSchedule, wireAdapter } from '../src/index.js';
 import { GatewayClient } from '@dsh-overdrive/sdk';
 import { MemoryStore } from '../src/memory.js';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { rmSync, writeFileSync } from 'node:fs';
 import type { Adapter, NormalizedMessage, OutboundPayload, ReplySender } from '../src/adapter.js';
 
 /** 可编程 FakeAdapter：验证 wiring 逻辑（白名单/会话键/错误兜底）。 */
@@ -40,6 +43,7 @@ function fakeClient() {
       approvals.push({ reqId, decision });
       return { ok: true };
     },
+    listTasks: async () => ({ tasks: [] }),
     // wireAdapter 末尾会订阅事件流（client.connect），假客户端需实现完整接口
     connect: async () => () => undefined,
   } as unknown as GatewayClient;
@@ -139,6 +143,64 @@ describe('wireAdapter（多适配器装配核心）', () => {
     await adapter.emit({ chatId: '111', userId: '222', text: '/remember 用户住在杭州' });
     expect(memory.count('telegram:222')).toBe(1);
     expect(adapter.sent[0].payload.text).toContain('已记住');
+  });
+
+  it('/send <path> 读取文件并以媒体载荷发送', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client } = fakeClient();
+    const tmp = join(tmpdir(), `dsh-send-test-${Date.now()}.png`);
+    writeFileSync(tmp, Buffer.from([1, 2, 3]));
+    try {
+      await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'] });
+      await adapter.emit({ chatId: '111', userId: '222', text: `/send ${tmp}` });
+      expect(adapter.sent[0].payload.media).toMatchObject({ kind: 'image', path: tmp });
+      expect(adapter.sent[0].payload.text).toContain('📎');
+    } finally {
+      rmSync(tmp, { force: true });
+    }
+  });
+
+  it('/send 不存在的文件回错误文本', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client } = fakeClient();
+    await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'] });
+    await adapter.emit({ chatId: '111', userId: '222', text: '/send /no/such/file.png' });
+    expect(adapter.sent[0].payload.text).toContain('❌');
+  });
+
+  it('/status 返回适配器/记忆/定时任务概览', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client } = fakeClient();
+    const memory = new MemoryStore();
+    memory.add('telegram:222', 'x');
+    await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'], memory });
+    await adapter.emit({ chatId: '111', userId: '222', text: '/status' });
+    expect(adapter.sent[0].payload.text).toContain('📊 状态');
+    expect(adapter.sent[0].payload.text).toContain('telegram');
+    expect(adapter.sent[0].payload.text).toContain('记忆: 1 条');
+  });
+});
+
+describe('remindSchedule', () => {
+  it('相对分钟 → cron 5 字段', () => {
+    const now = new Date('2026-08-20T10:05:00');
+    expect(remindSchedule(10, null, now)).toBe('15 10 20 8 *');
+  });
+  it('定点时间 → cron；已过则推到明天', () => {
+    const now = new Date('2026-08-20T10:05:00');
+    expect(remindSchedule(0, '14:30', now)).toBe('30 14 20 8 *');
+    expect(remindSchedule(0, '09:00', now)).toBe('0 9 21 8 *');
+  });
+});
+
+describe('mediaKindFromPath', () => {
+  it('图片/语音/其他文件分类', () => {
+    expect(mediaKindFromPath('a.png')).toBe('image');
+    expect(mediaKindFromPath('b.JPG')).toBe('image');
+    expect(mediaKindFromPath('c.webp')).toBe('image');
+    expect(mediaKindFromPath('v.ogg')).toBe('voice');
+    expect(mediaKindFromPath('r.pdf')).toBe('file');
+    expect(mediaKindFromPath('x.zip')).toBe('file');
   });
 });
 
