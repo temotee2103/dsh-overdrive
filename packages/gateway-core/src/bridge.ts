@@ -107,7 +107,7 @@ export class DshBridge {
       try {
         const { platform, channel, user } = parseSessionKey(job.sessionId);
         const agent = await this.runtime.ensureAgent(toDshSessionId(platform, channel, user));
-        agent.followup(this.runtime.buildUserMessage(job.prompt));
+        agent.followup(await this.runtime.buildUserMessage(job.prompt));
         console.log(`[dsh-overdrive-gateway-core] cron 触发: ${job.schedule} → ${job.sessionId}（${job.prompt}）`);
       } catch (error) {
         console.warn(`[dsh-overdrive-gateway-core] cron 触发失败（${job.sessionId}）: ${error instanceof Error ? error.message : String(error)}`);
@@ -124,7 +124,7 @@ export class DshBridge {
       sendMessage: async (protocolSessionId, req) => {
         const { platform, channel, user } = parseSessionKey(protocolSessionId);
         const agent = await this.runtime.ensureAgent(toDshSessionId(platform, channel, user));
-        agent.followup(this.runtime.buildUserMessage(req.text, req.media));
+        agent.followup(await this.runtime.buildUserMessage(req.text, req.media));
         return { runId: `${Date.now()}` };
       },
       resolveApproval: async (reqId, decision) => {

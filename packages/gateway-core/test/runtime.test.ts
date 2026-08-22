@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createDshRuntime, type DshRuntime } from '../src/dsh-runtime.js';
+import { createDshRuntime, imageMediaTypeFrom, type DshRuntime } from '../src/dsh-runtime.js';
 
 /** 最小可用的 Cordis ctx 替身：agents(create/resume) + on(event) + get(subagents)。 */
 function fakeCtx(overrides: Record<string, unknown> = {}) {
@@ -92,29 +92,86 @@ describe('createDshRuntime', () => {
     expect(started[0].request).toMatchObject({ label: '调研', prompt: [{ type: 'text', text: '调研竞品' }] });
   });
 
-  it('buildUserMessage 产出 {content, source}', () => {
+  it('buildUserMessage 产出 {content, source}', async () => {
     const { ctx } = fakeCtx();
     const runtime = createDshRuntime(ctx, {});
-    const msg = runtime.buildUserMessage('hi') as { content: unknown[]; source: { kind: string } };
+    const msg = await runtime.buildUserMessage('hi') as { content: unknown[]; source: { kind: string } };
     expect(msg.content).toEqual([{ type: 'text', text: 'hi' }]);
     expect(msg.source.kind).toBe('user');
   });
 
-  it('buildUserMessage 带 image media 降级为纯文本（dsh-llm 不支持 URL 图片 block）', () => {
-    const { ctx } = fakeCtx();
+  it('buildUserMessage 带 image media 且 attachments 服务不可用时降级为纯文本', async () => {
+    const { ctx } = fakeCtx(); // 默认 get() 不提供 attachments
     const runtime = createDshRuntime(ctx, {});
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const msg = runtime.buildUserMessage('看图', { kind: 'image', url: 'https://x/y.png' }) as { content: Array<{ type: string }> };
+    const msg = await runtime.buildUserMessage('看图', { kind: 'image', url: 'https://x/y.png' }) as { content: Array<{ type: string }> };
     expect(msg.content).toEqual([{ type: 'text', text: '看图' }]);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
 
-  it('buildUserMessage 带 voice media 时文本末尾追加降级提示', () => {
+  it('buildUserMessage 带 image media：下载 → saveImage → ImageBlock', async () => {
+    const saved: Array<{ data: Uint8Array; mediaType: string }> = [];
+    const { ctx } = fakeCtx({
+      get: (key: string) =>
+        key === 'attachments'
+          ? {
+              saveImage: async (req: { data: Uint8Array; mediaType: string }) => {
+                saved.push(req);
+                return { attachmentId: 'att-1', mediaType: req.mediaType, bytes: req.data.length, width: 10, height: 10, name: 'chat-image' };
+              },
+            }
+          : key === 'subagents' ? { start: async () => ({}) } : undefined,
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }));
+    try {
+      const runtime = createDshRuntime(ctx, {});
+      const msg = await runtime.buildUserMessage('看图', { kind: 'image', url: 'https://x/y.png' }) as {
+        content: Array<{ type: string; attachment?: unknown }>;
+      };
+      expect(msg.content).toHaveLength(2);
+      expect(msg.content[1]).toMatchObject({ type: 'image', attachment: { attachmentId: 'att-1', mediaType: 'image/png', bytes: 3 } });
+      expect(saved).toHaveLength(1);
+      expect(saved[0].mediaType).toBe('image/png');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('buildUserMessage 带 image media：下载失败降级为纯文本', async () => {
+    const { ctx } = fakeCtx({
+      get: (key: string) =>
+        key === 'attachments'
+          ? { saveImage: async () => ({ attachmentId: 'att-1', mediaType: 'image/png', bytes: 1, width: 1, height: 1 }) }
+          : key === 'subagents' ? { start: async () => ({}) } : undefined,
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+    try {
+      const runtime = createDshRuntime(ctx, {});
+      const msg = await runtime.buildUserMessage('看图', { kind: 'image', url: 'https://x/y.png' }) as { content: Array<{ type: string }> };
+      expect(msg.content).toEqual([{ type: 'text', text: '看图' }]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('imageMediaTypeFrom 由 MIME 或 URL 扩展名解析图片类型', () => {
+    expect(imageMediaTypeFrom('image/png', undefined)).toBe('image/png');
+    expect(imageMediaTypeFrom('image/jpeg', undefined)).toBe('image/jpeg');
+    expect(imageMediaTypeFrom('IMAGE/WEBP', undefined)).toBe('image/webp');
+    expect(imageMediaTypeFrom(undefined, 'https://x/y.png')).toBe('image/png');
+    expect(imageMediaTypeFrom(undefined, 'https://x/y.JPG?token=abc')).toBe('image/jpeg');
+    expect(imageMediaTypeFrom('text/plain', 'https://x/y.gif')).toBe('image/gif');
+    expect(imageMediaTypeFrom(undefined, 'https://x/y.bmp')).toBeNull();
+    expect(imageMediaTypeFrom('application/pdf', undefined)).toBeNull();
+    expect(imageMediaTypeFrom(undefined, 'https://x/noext')).toBeNull();
+  });
+
+  it('buildUserMessage 带 voice media 时文本末尾追加降级提示', async () => {
     const { ctx } = fakeCtx();
     const runtime = createDshRuntime(ctx, {});
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const msg = runtime.buildUserMessage('', { kind: 'voice', url: 'https://x/v.ogg' }) as { content: Array<{ type: string; text: string }> };
+    const msg = await runtime.buildUserMessage('', { kind: 'voice', url: 'https://x/v.ogg' }) as { content: Array<{ type: string; text: string }> };
     expect(msg.content).toEqual([{ type: 'text', text: '\n[收到语音消息，暂不支持转写]' }]);
     warn.mockRestore();
   });

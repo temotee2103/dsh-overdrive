@@ -22,13 +22,13 @@ class FakeRuntime implements DshRuntime {
     };
   }
   buildUserMessage(text: string, media?: MediaRef) {
-    return {
+    return Promise.resolve({
       content: [
         { type: 'text', text },
         ...(media?.kind === 'image' && media.url ? [{ type: 'image', url: media.url }] : []),
       ],
       source: { kind: 'user' },
-    };
+    });
   }
   onSessionEvent(cb: (sessionId: string, event: { type: string; data: Record<string, unknown> }) => void) { this.sessionCb = cb; }
   onApprovalRequest(cb: (req: ApprovalRequestLike, next: () => Promise<ApprovalOutcome>) => Promise<ApprovalOutcome>) { this.approvalCb = cb; }

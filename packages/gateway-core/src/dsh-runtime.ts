@@ -5,7 +5,7 @@ import {
   type ModelSelection,
   type ModelSelectionRef,
 } from '@deepseek-ai/dsh-agent';
-import { createUserMessage } from '@deepseek-ai/dsh-llm';
+import { createUserMessage, type ContentBlock } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { DshSessionEvent } from './derive.js';
 
@@ -17,6 +17,41 @@ export interface MediaRef {
   url?: string;
   mime?: string;
   caption?: string;
+}
+
+/** dsh-attachment 版本一路径接受的图片类型（结构等价，避免直接依赖传递包的类型）。 */
+export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+
+const IMAGE_EXT_MAP: Record<string, ImageMediaType> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+};
+
+const IMAGE_MIME_MAP: Record<string, ImageMediaType> = {
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+  'image/jpg': 'image/jpeg',
+  'image/webp': 'image/webp',
+  'image/gif': 'image/gif',
+};
+
+/** 纯函数：由 MIME 或 URL 扩展名解析附件商店接受的图片类型；无法识别返回 null。 */
+export function imageMediaTypeFrom(mime?: string, url?: string): ImageMediaType | null {
+  if (mime) {
+    const normalized = mime.split(';')[0].trim().toLowerCase();
+    if (normalized in IMAGE_MIME_MAP) return IMAGE_MIME_MAP[normalized] as ImageMediaType;
+  }
+  if (url) {
+    const match = /\.([a-z0-9]+)(?:[?#].*)?$/i.exec(url);
+    if (match) {
+      const ext = match[1].toLowerCase();
+      if (ext in IMAGE_EXT_MAP) return IMAGE_EXT_MAP[ext] as ImageMediaType;
+    }
+  }
+  return null;
 }
 
 /** DSH approval/request 载荷的结构化外形（harness-lark 同款声明，见其 feishu-approval.ts）。 */
@@ -39,7 +74,7 @@ export interface AgentLike {
 /** gateway-core 桥接依赖的 DSH 最小面。测试用 Fake 实现，运行时由 ctx 提供。 */
 export interface DshRuntime {
   ensureAgent(sessionId: string): Promise<AgentLike>;
-  buildUserMessage(text: string, media?: MediaRef): unknown;
+  buildUserMessage(text: string, media?: MediaRef): Promise<unknown>;
   onSessionEvent(cb: (sessionId: string, event: DshSessionEvent) => void): void;
   onApprovalRequest(
     cb: (req: ApprovalRequestLike, next: () => Promise<ApprovalOutcome>) => Promise<ApprovalOutcome>,
@@ -138,16 +173,47 @@ export function createDshRuntime(ctx: Context, opts: DshRuntimeOptions = {}): Ds
     await entry.dispose?.();
   }
 
+  /**
+   * 下载图片字节并经 attachments 商店落盘，返回 ImageBlock 可用的 attachment 引用。
+   * 下载失败 / 类型不支持 / attachments 服务不可用 → 返回 null（调用方降级为文本）。
+   */
+  async function saveImageFromUrl(
+    url: string,
+    mime?: string,
+  ): Promise<unknown | null> {
+    const mediaType = imageMediaTypeFrom(mime, url);
+    if (!mediaType) return null;
+    const attachments = (ctx as unknown as { get?: (key: string) => unknown }).get?.('attachments') as
+      | { saveImage?: (req: { data: Uint8Array; mediaType: string; name?: string }) => Promise<unknown> }
+      | undefined;
+    if (!attachments?.saveImage) return null;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const data = new Uint8Array(await res.arrayBuffer());
+      return await attachments.saveImage({ data, mediaType, name: 'chat-image' });
+    } catch (error) {
+      console.warn(`[gateway-core] 图片下载/保存失败: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    }
+  }
+
   return {
     ensureAgent,
     destroyAgent,
 
-    buildUserMessage(text, media) {
-      const content: Array<{ type: 'text'; text: string }> = [{ type: 'text', text }];
+    async buildUserMessage(text, media) {
+      const content: ContentBlock[] = [{ type: 'text', text }];
       if (media?.kind === 'image' && media.url) {
-        // dsh-llm rc.6 的 ImageBlock 需要持久 attachment 引用（ctx.attachments.saveImage 落盘真实字节），
-        // 仅凭 URL 无法构造合法 content block → 按计划降级为纯文本 + warn（多模态接入留 M5 后）。
-        console.warn(`[gateway-core] 图片消息降级为文本（ImageBlock 需 attachment 引用，URL 直连暂不支持）: ${media.url}`);
+        // 真实图片：下载 → ctx.attachments.saveImage 落盘 → ImageBlock（M5 后兑现）。
+        // 平台 URL 需可匿名下载（Telegram getFile URL 可；Slack url_private / WhatsApp directPath 需平台鉴权，
+        // 下载失败时优雅降级为纯文本）。模型是否具备视觉能力由部署决定。
+        const ref = await saveImageFromUrl(media.url, media.mime);
+        if (ref) {
+          content.push({ type: 'image', attachment: ref } as ContentBlock);
+        } else {
+          console.warn(`[gateway-core] 图片消息降级为文本（下载/类型/attachments 服务不可用）: ${media.url}`);
+        }
       } else if (media?.kind === 'voice') {
         content[0] = { type: 'text', text: `${text}\n[收到语音消息，暂不支持转写]` };
         console.warn('[gateway-core] 收到语音消息，暂不支持转写；请发文字');
