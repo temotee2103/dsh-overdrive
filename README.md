@@ -139,8 +139,12 @@ No terminal skills needed. dsh-overdrive is designed to be **installed by one pe
 | `/forget <memory-id>` | Delete a memory |
 | `/send <path>` | Send a local file/image into this chat |
 | `/status` | Adapter / memory / cron status overview |
+| `/digest` · `/digest daily 09:00` | Instant or scheduled daily summary |
+| `/feed add <rss-url>` · `/feed list` · `/feed rm <id>` | RSS subscriptions pushed into the chat |
 | `/agents` | Subagent status (simplified) |
 | `/new` | Reset the conversation |
+
+> Agent-produced files (images/docs) are **auto-sent** to the chat at the end of each turn (scan the agent workspace, base64 over the protocol).
 
 ## Architecture
 

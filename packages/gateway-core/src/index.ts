@@ -38,7 +38,7 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}) {
     sessionPrefix: rawConfig.sessionPrefix,
     model: rawConfig.model,
   });
-  const bridge = new DshBridge(server, runtime, { approvalTimeoutMs });
+  const bridge = new DshBridge(server, runtime, { approvalTimeoutMs, cwd: rawConfig.cwd });
   Object.assign(handlers, bridge.handlers());
   bridge.start();
 

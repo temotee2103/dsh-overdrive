@@ -12,7 +12,12 @@ export type ParsedCommand =
   | { kind: 'forget'; memoryId: string }
   | { kind: 'remind'; text: string; inMinutes: number | null; atTime: string | null }
   | { kind: 'send'; path: string }
-  | { kind: 'status' };
+  | { kind: 'status' }
+  | { kind: 'feedadd'; url: string }
+  | { kind: 'feedlist' }
+  | { kind: 'feedrm'; feedId: string }
+  | { kind: 'digest' }
+  | { kind: 'digestdaily'; time: string };
 
 // cron 语法：/cron <分 时 日 月 周> <需求>（schedule 为 5 个空白分隔字段）
 const CRON_RE = /^\/cron\s+(\S+\s+\S+\s+\S+\s+\S+\s+\S+)\s+(.+)$/;
@@ -51,6 +56,14 @@ export function parseCommand(text: string): ParsedCommand | null {
   if (remindAt) return { kind: 'remind', text: remindAt[2], inMinutes: null, atTime: remindAt[1] };
   const send = trimmed.match(/^\/send\s+(.+)$/);
   if (send) return { kind: 'send', path: send[1].trim() };
+  if (trimmed === '/digest') return { kind: 'digest' };
+  const digestDaily = trimmed.match(/^\/digest\s+daily\s+(\d{1,2}:\d{2})$/);
+  if (digestDaily) return { kind: 'digestdaily', time: digestDaily[1] };
+  const feedAdd = trimmed.match(/^\/feed\s+add\s+(\S+)$/i);
+  if (feedAdd) return { kind: 'feedadd', url: feedAdd[1] };
+  if (/^\/feed\s+list$/i.test(trimmed)) return { kind: 'feedlist' };
+  const feedRm = trimmed.match(/^\/feed\s+rm\s+(\S+)$/i);
+  if (feedRm) return { kind: 'feedrm', feedId: feedRm[1] };
   return null;
 }
 
@@ -67,6 +80,10 @@ export const HELP_TEXT = [
   '/forget <记忆id> — 删除一条记忆',
   '/send <文件路径> — 把本地文件/图片发到当前聊天',
   '/status — 查看运行状态',
+  '/digest — 立即生成今日摘要',
+  '/digest daily 09:00 — 每天定时生成摘要',
+  '/feed add <rss链接> — 订阅 RSS 推送',
+  '/feed list / rm <id> — 管理订阅',
   '/agents — 查看子任务状态',
   '/new — 重置会话',
 ].join('\n');

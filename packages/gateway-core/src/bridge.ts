@@ -9,12 +9,18 @@ import type { ApprovalOutcome, ApprovalRequestLike, DshRuntime } from './dsh-run
 import { cronMatches, nextRunTime, parseCron, type CronSchedule } from './cron.js';
 import { deriveProtocolEvents } from './derive.js';
 import { fromDshSessionId, toDshSessionId } from './keys.js';
+import { findNewMediaFiles, mediaKindForName } from './autosend.js';
+import { readFileSync } from 'node:fs';
 
 export interface BridgeOptions {
   /** 审批超时（毫秒），超时自动拒绝。 */
   approvalTimeoutMs?: number;
   /** cron 调度循环间隔（毫秒），默认 30s；测试可注入缩短。 */
   cronLoopIntervalMs?: number;
+  /** agent 工作目录（自动发送扫描的目录），默认 process.cwd()。 */
+  cwd?: string;
+  /** 自动发送单文件大小上限（字节），默认 4MB；超限跳过。 */
+  autosendMaxBytes?: number;
 }
 
 interface PendingApproval {
@@ -47,6 +53,10 @@ export class DshBridge {
   private readonly cronJobs = new Map<string, CronJob>();
   private readonly approvalTimeoutMs: number;
   private readonly cronLoopIntervalMs: number;
+  private readonly autosendCwd: string;
+  private readonly autosendMaxBytes: number;
+  /** 每个会话已自动发送过的文件名（跨 turn 去重，上限 200）。 */
+  private readonly seenFiles = new Map<string, Set<string>>();
   private cronTimer?: NodeJS.Timeout;
 
   constructor(
@@ -56,6 +66,8 @@ export class DshBridge {
   ) {
     this.approvalTimeoutMs = opts.approvalTimeoutMs ?? 120_000;
     this.cronLoopIntervalMs = opts.cronLoopIntervalMs ?? CRON_LOOP_INTERVAL_MS;
+    this.autosendCwd = opts.cwd ?? process.cwd();
+    this.autosendMaxBytes = opts.autosendMaxBytes ?? 4 * 1024 * 1024;
   }
 
   /** 订阅 DSH 事件与审批 waterfall，并启动 cron 调度循环。 */
@@ -65,9 +77,48 @@ export class DshBridge {
       // `platform:channel:user`，否则 gateway 无法映射回聊天（真机验证发现的 bug）。
       const protocolSessionId = this.toProtocolSessionId(sessionId);
       for (const ev of deriveProtocolEvents(protocolSessionId, event)) this.server.emit(ev);
+      // 自动发送：turn 结束后扫描 agent 工作目录里新产生的媒体文件，经协议事件发回聊天
+      if (event.type === 'turn/end') this.scanAndEmitAutosend(protocolSessionId);
     });
     this.runtime.onApprovalRequest((req, next) => this.answerApproval(req, next));
     this.startCronLoop();
+  }
+
+  /** 扫描工作目录：未被 seen 记录的媒体文件 → 读字节 → 发 file.created（base64）。 */
+  private scanAndEmitAutosend(protocolSessionId: string): void {
+    const seen = this.seenFiles.get(protocolSessionId) ?? new Set<string>();
+    try {
+      for (const found of findNewMediaFiles(this.autosendCwd, seen)) {
+        if (found.bytes > this.autosendMaxBytes) {
+          console.warn(`[gateway-core] 自动发送跳过超大文件 ${found.name}（${found.bytes} 字节 > ${this.autosendMaxBytes}）`);
+          seen.add(found.name);
+          continue;
+        }
+        try {
+          const data = readFileSync(found.path).toString('base64');
+          this.server.emit({
+            type: 'file.created',
+            sessionId: protocolSessionId,
+            ts: Date.now(),
+            name: found.name,
+            kind: found.kind,
+            data,
+          });
+          console.log(`[gateway-core] 自动发送: ${found.name} → ${protocolSessionId}`);
+        } catch (error) {
+          console.warn(`[gateway-core] 自动发送读取失败 ${found.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        seen.add(found.name);
+      }
+      if (seen.size > 200) {
+        // 防无限增长：只保留最近 200 个文件名
+        this.seenFiles.set(protocolSessionId, new Set([...seen].slice(-200)));
+      } else {
+        this.seenFiles.set(protocolSessionId, seen);
+      }
+    } catch {
+      /* 扫描失败不影响主流程 */
+    }
   }
 
   /** DSH 会话 id（dsh:platform:channel:user）→ 协议会话键（platform:channel:user）。 */

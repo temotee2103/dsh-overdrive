@@ -1,5 +1,6 @@
-import { existsSync } from 'node:fs';
-import { basename } from 'node:path';
+import { existsSync, writeFileSync, rmSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { GatewayClient, type ServerEvent } from '@dsh-overdrive/sdk';
 import type { Adapter, OutboundPayload } from './adapter.js';
 import { Allowlist, buildSessionKey } from './session.js';
@@ -10,6 +11,7 @@ import { TrajectoryAggregator, formatTrajectorySummary } from './trajectory.js';
 import { createStatusServer } from './status.js';
 import { createTranscriber, type AsrTranscriber } from './asr.js';
 import { MemoryStore, memoryScope, formatMemories, extractAutoMemories } from './memory.js';
+import { FeedStore, FeedPoller } from './feed.js';
 
 /**
  * message.delta → 打字指示去重：同一 turn 内首个 delta 触发一次 typing，
@@ -76,6 +78,8 @@ export interface WireOptions {
   memory?: MemoryStore;
   /** 人设（persona）：每条用户消息前注入的固定上下文，如「你是一个毒舌但贴心的私人助理」。 */
   persona?: string;
+  /** RSS 订阅存储（/feed 命令）。 */
+  feed?: FeedStore;
 }
 
 /** 纯函数：一次性提醒的时间 → cron 5 字段表达式（分钟精度）。 */
@@ -108,6 +112,7 @@ async function handleCommand(
   chatId: string,
   aggregator: TrajectoryAggregator,
   memory: MemoryStore | undefined,
+  feed: FeedStore | undefined,
 ): Promise<void> {
   switch (command.kind) {
     case 'trace': {
@@ -214,6 +219,48 @@ async function handleCommand(
       });
       return;
     }
+    case 'digest': {
+      const scope = memoryScope(adapter.id, sessionId.split(':')[2] ?? '');
+      const mems = memory ? memory.list(scope) : [];
+      const crons = await client.listTasks();
+      await adapter.send(chatId, {
+        text: [
+          `📋 今日摘要`,
+          `- 你的记忆: ${mems.length} 条${mems.slice(0, 5).map((e) => `\n  · ${e.text}`).join('')}`,
+          `- 定时任务: ${crons.tasks.length} 个`,
+          `- 订阅源: ${feed ? feed.list().filter((f) => f.chatId === chatId).length : 0} 个`,
+        ].join('\n'),
+      });
+      return;
+    }
+    case 'digestdaily': {
+      const schedule = remindSchedule(0, command.time);
+      await client.createTask({ sessionId, kind: 'cron', prompt: '⏰ 每日摘要：请基于今天的对话输出一份简短摘要。', schedule });
+      await adapter.send(chatId, { text: `📋 已设置每日摘要（${command.time} 触发）` });
+      return;
+    }
+    case 'feedadd': {
+      if (!feed) { await adapter.send(chatId, { text: 'RSS 订阅未启用。' }); return; }
+      const entry = feed.add(adapter.id, chatId, command.url);
+      await adapter.send(chatId, { text: `✅ 已订阅 RSS（\`${entry.id}\`）：${command.url}` });
+      return;
+    }
+    case 'feedlist': {
+      if (!feed) { await adapter.send(chatId, { text: 'RSS 订阅未启用。' }); return; }
+      const mine = feed.list().filter((f) => f.chatId === chatId);
+      await adapter.send(chatId, {
+        text: mine.length
+          ? `📡 订阅（${mine.length}）:\n` + mine.map((f) => `- \`${f.id}\` ${f.url}`).join('\n')
+          : '暂无订阅。用 /feed add <rss链接> 添加。',
+      });
+      return;
+    }
+    case 'feedrm': {
+      if (!feed) { await adapter.send(chatId, { text: 'RSS 订阅未启用。' }); return; }
+      const ok = feed.remove(command.feedId);
+      await adapter.send(chatId, { text: ok ? `🗑️ 已删除订阅 \`${command.feedId}\`` : `未找到订阅 \`${command.feedId}\`` });
+      return;
+    }
     case 'help': {
       await adapter.send(chatId, { text: HELP_TEXT });
       return;
@@ -245,7 +292,7 @@ export async function wireAdapter(
       const command = parseCommand(msg.text);
       if (command) {
         console.log(`[gateway][${adapter.id}] 命令: ${JSON.stringify(command)}`);
-        await handleCommand(adapter, client, command, key, msg.chatId, aggregator, opts.memory);
+        await handleCommand(adapter, client, command, key, msg.chatId, aggregator, opts.memory, opts.feed);
         return;
       }
 
@@ -328,6 +375,25 @@ export async function wireAdapter(
       deltas.onComplete(ev.sessionId);
     }
 
+    // 自动发送：agent 产出的文件（file.created，base64）→ 写临时文件 → 发到聊天 → 清理
+    if (ev.type === 'file.created') {
+      const chatId = chatIdFor(ev.sessionId);
+      const tmp = join(tmpdir(), `dsh-out-${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${ev.name}`);
+      try {
+        writeFileSync(tmp, Buffer.from(ev.data, 'base64'));
+      } catch (error) {
+        console.error(`[gateway][${adapter.id}] 写入自动发送临时文件失败: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+      void adapter.send(chatId, { text: `📎 ${ev.name}`, media: { kind: ev.kind, path: tmp, caption: ev.name } })
+        .then(
+          () => console.log(`[gateway][${adapter.id}] 已自动发送 ${ev.name} 到 ${chatId}`),
+          (error) => console.error(`[gateway][${adapter.id}] 自动发送失败 ${ev.name}: ${error instanceof Error ? error.message : String(error)}`),
+        )
+        .finally(() => rmSync(tmp, { force: true }));
+      return;
+    }
+
     // 轨迹聚合：trajectory.step 攒批，idle 时产出 trajectory.summary（减少刷屏）
     aggregator.onEvent(ev, (out) => {
       const planned = planOutbound(out);
@@ -358,16 +424,21 @@ async function main(): Promise<void> {
   if (asr.enabled) console.log('[gateway] ASR 语音转写已启用');
   const memory = new MemoryStore(process.env.MEMORY_FILE ?? 'data/memory.json');
   console.log(`[gateway] 记忆系统已启用（文件: ${process.env.MEMORY_FILE ?? 'data/memory.json'}）`);
+  const feedStore = new FeedStore(process.env.FEED_FILE ?? 'data/feeds.json');
 
   const client = new GatewayClient(dshBaseUrl, dshToken);
   await client.health(); // 确认 DSH 侧（或 mock）活着
 
   const adapters: Adapter[] = adapterIds.map((id) => createAdapter(id, env));
+  const adaptersMap = new Map(adapters.map((a) => [a.id, a]));
+  const feedPoller = new FeedPoller(feedStore, adaptersMap);
+  feedPoller.start();
+  console.log('[gateway] RSS 订阅轮询已启动');
   for (const adapter of adapters) {
     await adapter.connect();
     // 人设：PERSONA_<ADAPTER_ID>（如 PERSONA_TELEGRAM）优先，回退 PERSONA
     const persona = process.env[`PERSONA_${adapter.id.toUpperCase()}`] ?? process.env.PERSONA;
-    await wireAdapter(adapter, client, { allowlist, allowAll, asr, memory, persona });
+    await wireAdapter(adapter, client, { allowlist, allowAll, asr, memory, persona, feed: feedStore });
     console.log(`[gateway] ${adapter.id} 适配器已就绪${persona ? `（人设: ${persona.slice(0, 20)}…）` : ''}`);
   }
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { mediaKindFromPath, remindSchedule, wireAdapter } from '../src/index.js';
-import { GatewayClient } from '@dsh-overdrive/sdk';
+import { GatewayClient, type ServerEvent } from '@dsh-overdrive/sdk';
 import { MemoryStore } from '../src/memory.js';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { rmSync, writeFileSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import type { Adapter, NormalizedMessage, OutboundPayload, ReplySender } from '../src/adapter.js';
 
 /** 可编程 FakeAdapter：验证 wiring 逻辑（白名单/会话键/错误兜底）。 */
@@ -164,6 +164,26 @@ describe('wireAdapter（多适配器装配核心）', () => {
 
     await adapter.emit({ chatId: '111', userId: '222', text: '你好' });
     expect(messages[0].text).toBe('【人设】你是一个毒舌助理\n你好');
+  });
+
+  it('file.created 事件：agent 产出的文件自动发回聊天并清理临时文件', async () => {
+    const adapter = new FakeAdapter('telegram');
+    let onEvent: ((ev: ServerEvent) => void) | undefined;
+    const client = {
+      upsertSession: async () => ({ sessionId: 'telegram:111:222' }),
+      connect: async (cb: (ev: ServerEvent) => void) => { onEvent = cb; return () => {}; },
+    } as unknown as GatewayClient;
+    await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'] });
+
+    const bytes = Buffer.from('fake-image-bytes');
+    onEvent!({
+      type: 'file.created', sessionId: 'telegram:111:222', ts: Date.now(),
+      name: 'chart.png', kind: 'image', data: bytes.toString('base64'),
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(adapter.sent[0].payload.text).toContain('chart.png');
+    expect(adapter.sent[0].payload.media).toMatchObject({ kind: 'image', caption: 'chart.png' });
+    expect(existsSync(adapter.sent[0].payload.media!.path)).toBe(false); // 临时文件已清理
   });
 
   it('/send <path> 读取文件并以媒体载荷发送', async () => {

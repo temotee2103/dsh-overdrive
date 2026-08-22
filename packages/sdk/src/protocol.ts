@@ -14,6 +14,7 @@ export type ServerEvent =
   | { type: 'approval.request'; sessionId: string; ts: number; reqId: string; summary: string; timeoutMs: number }
   | { type: 'agent.status'; sessionId: string; ts: number; status: 'busy' | 'idle' | 'subagent-spawned' }
   | { type: 'task.done'; sessionId: string; ts: number; taskId: string; ok: boolean }
+  | { type: 'file.created'; sessionId: string; ts: number; name: string; kind: 'image' | 'file' | 'voice'; data: string }
   | { type: 'error'; sessionId: string; ts: number; message: string };
 
 export interface UpsertSessionRequest { platform: string; channel: string; user: string; }

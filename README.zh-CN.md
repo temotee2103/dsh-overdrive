@@ -138,8 +138,12 @@ npx dsh-overdrive-gateway                                   # 起 gateway
 | `/forget <记忆id>` | 删除一条记忆 |
 | `/send <文件路径>` | 把本地文件/图片发到当前聊天 |
 | `/status` | 查看适配器/记忆/定时任务状态 |
+| `/digest` · `/digest daily 09:00` | 即时或定时每日摘要 |
+| `/feed add <rss链接>` · `/feed list` · `/feed rm <id>` | RSS 订阅推送到聊天 |
 | `/agents` | 子任务状态（简化） |
 | `/new` | 重置会话 |
+
+> agent 产出的文件（图片/文档）会在每轮 turn 结束后**自动发送**回聊天（扫描 agent 工作目录，经协议 base64 传输）。
 
 ## 架构
 

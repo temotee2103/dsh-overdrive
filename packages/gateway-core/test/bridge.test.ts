@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DshBridge } from '../src/bridge.js';
 import type { ApprovalOutcome, ApprovalRequestLike, DshRuntime, MediaRef } from '../src/dsh-runtime.js';
 import { ProtocolServer, type ProtocolHandlers, type ServerEvent } from '@dsh-overdrive/sdk';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const TOKEN = 'test-token';
 
@@ -225,6 +228,38 @@ describe('DshBridge', () => {
     } finally {
       bridge.dispose();
       await server.close();
+    }
+  });
+
+  it('turn/end 后自动发送工作目录新文件（file.created 事件，base64）', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-bridge-autosend-'));
+    const runtime = new FakeRuntime();
+    const events: ServerEvent[] = [];
+    const handlers = {} as ProtocolHandlers;
+    const server = new ProtocolServer({ token: TOKEN, handlers, version: '0.1.0' });
+    const bridge = new DshBridge(server, runtime, { approvalTimeoutMs: 60_000, cwd: dir });
+    Object.assign(handlers, bridge.handlers());
+    bridge.start();
+    server.onEvent((ev) => events.push(ev));
+    await server.listen(0);
+    try {
+      writeFileSync(join(dir, 'gen.png'), 'png-bytes');
+      runtime.push('dsh:cli:cli:local', 'turn/end', {});
+      await new Promise((r) => setTimeout(r, 50));
+      const ev = events.find((e) => e.type === 'file.created') as { type: 'file.created'; name: string; kind: string; data: string } | undefined;
+      expect(ev).toBeDefined();
+      expect(ev!.name).toBe('gen.png');
+      expect(ev!.kind).toBe('image');
+      expect(Buffer.from(ev!.data, 'base64').toString()).toBe('png-bytes');
+      // 同一文件不会重复发送（seen 去重）
+      runtime.push('dsh:cli:cli:local', 'turn/end', {});
+      await new Promise((r) => setTimeout(r, 50));
+      const count = events.filter((e) => e.type === 'file.created').length;
+      expect(count).toBe(1);
+    } finally {
+      bridge.dispose();
+      await server.close();
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });
