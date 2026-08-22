@@ -30,6 +30,8 @@ interface CronJob {
   schedule: string;
   cron: CronSchedule;
   prompt: string;
+  /** 一次性任务（/remind）：触发一次后自动删除。 */
+  once?: boolean;
   /** 上次触发的分钟桶（ms），防止同一分钟重复触发。 */
   lastFiredAtMs: number;
 }
@@ -109,6 +111,10 @@ export class DshBridge {
         const agent = await this.runtime.ensureAgent(toDshSessionId(platform, channel, user));
         agent.followup(await this.runtime.buildUserMessage(job.prompt));
         console.log(`[dsh-overdrive-gateway-core] cron 触发: ${job.schedule} → ${job.sessionId}（${job.prompt}）`);
+        if (job.once) {
+          this.cronJobs.delete(job.id); // 一次性任务（/remind）触发后移除
+          console.log(`[dsh-overdrive-gateway-core] 一次性任务 ${job.id} 已触发并移除`);
+        }
       } catch (error) {
         console.warn(`[dsh-overdrive-gateway-core] cron 触发失败（${job.sessionId}）: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -147,6 +153,7 @@ export class DshBridge {
             schedule: req.schedule,
             cron,
             prompt: req.prompt,
+            once: req.once ?? false,
             lastFiredAtMs: -1,
           });
           return { taskId };
@@ -164,6 +171,7 @@ export class DshBridge {
           schedule: job.schedule,
           prompt: job.prompt,
           sessionId: job.sessionId,
+          once: job.once ?? false,
           nextRunAt: (() => {
             try {
               return nextRunTime(job.cron, now).toISOString();

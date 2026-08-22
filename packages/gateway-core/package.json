@@ -1,6 +1,6 @@
-{
+﻿{
   "name": "@dsh-overdrive/gateway-core",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "scripts": {
     "build": "tsc"
@@ -14,7 +14,7 @@
   },
   "devDependencies": {},
   "license": "MIT",
-  "description": "dsh-overdrive: DeepSeek Harness plugin — multi-platform chat bridge core (trajectory / approval / multi-agent)",
+  "description": "dsh-overdrive: DeepSeek Harness plugin â€” multi-platform chat bridge core (trajectory / approval / multi-agent)",
   "repository": {
     "type": "git",
     "url": "https://github.com/temotee2103/dsh-overdrive.git"

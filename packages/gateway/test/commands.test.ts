@@ -21,4 +21,18 @@ describe('parseCommand', () => {
     expect(parseCommand('/task')).toBeNull(); // 缺参数
     expect(parseCommand('/cronrm')).toBeNull(); // 缺任务 id
   });
+  it('识别 /remember /recall /forget', () => {
+    expect(parseCommand('/remember 用户喜欢美式咖啡')).toEqual({ kind: 'remember', text: '用户喜欢美式咖啡' });
+    expect(parseCommand('/recall 咖啡')).toEqual({ kind: 'recall', query: '咖啡' });
+    expect(parseCommand('/recall')).toEqual({ kind: 'recall', query: '' });
+    expect(parseCommand('/forget abc123')).toEqual({ kind: 'forget', memoryId: 'abc123' });
+    expect(parseCommand('/remember')).toBeNull(); // 缺内容
+  });
+  it('识别 /remind（相对时间与定点时间）', () => {
+    expect(parseCommand('/remind in 10 分钟 喝水')).toEqual({ kind: 'remind', text: '喝水', inMinutes: 10, atTime: null });
+    expect(parseCommand('/remind in 2 小时 开会')).toEqual({ kind: 'remind', text: '开会', inMinutes: 120, atTime: null });
+    expect(parseCommand('/remind in 30 minutes 散步')).toEqual({ kind: 'remind', text: '散步', inMinutes: 30, atTime: null });
+    expect(parseCommand('/remind in 1 day 汇报')).toEqual({ kind: 'remind', text: '汇报', inMinutes: 1440, atTime: null });
+    expect(parseCommand('/remind at 14:30 开会')).toEqual({ kind: 'remind', text: '开会', inMinutes: null, atTime: '14:30' });
+  });
 });

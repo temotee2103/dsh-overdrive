@@ -132,6 +132,10 @@ npx dsh-overdrive-gateway                                   # 起 gateway
 | `/cron <分 时 日 月 周> <需求>` | 定时任务（自带 5 字段调度器） |
 | `/crons` | 查看已注册的定时任务列表（含下次触发时间） |
 | `/cronrm <任务id>` | 删除定时任务 |
+| `/remind in 10 分钟 <内容>` | 一次性定时提醒（也支持 at HH:MM） |
+| `/remember <事实>` | 记住关于你的事（长期记忆） |
+| `/recall <关键词>` | 回忆相关记忆 |
+| `/forget <记忆id>` | 删除一条记忆 |
 | `/agents` | 子任务状态（简化） |
 | `/new` | 重置会话 |
 

@@ -7,6 +7,7 @@ import { parseCommand, HELP_TEXT, type ParsedCommand } from './commands.js';
 import { TrajectoryAggregator, formatTrajectorySummary } from './trajectory.js';
 import { createStatusServer } from './status.js';
 import { createTranscriber, type AsrTranscriber } from './asr.js';
+import { MemoryStore, memoryScope, formatMemories } from './memory.js';
 
 /**
  * message.delta → 打字指示去重：同一 turn 内首个 delta 触发一次 typing，
@@ -69,9 +70,24 @@ export interface WireOptions {
   allowAll?: boolean;
   /** ASR 转写器；配置了 API key 时启用，语音消息转成文本再发给 agent。 */
   asr?: AsrTranscriber;
+  /** 记忆系统（OpenClaw 式长期记忆）；未提供则记忆命令返回不可用。 */
+  memory?: MemoryStore;
 }
 
-/** 命令面分发：/trace /new /task /cron /agents /help（M4）。 */
+/** 纯函数：一次性提醒的时间 → cron 5 字段表达式（分钟精度）。 */
+export function remindSchedule(minutes: number, atTime: string | null, now = new Date()): string {
+  const target = new Date(now);
+  if (atTime) {
+    const [h, m] = atTime.split(':').map(Number);
+    target.setHours(h, m, 0, 0);
+    if (target <= now) target.setDate(target.getDate() + 1); // 已过则明天
+  } else {
+    target.setMinutes(target.getMinutes() + minutes);
+  }
+  return `${target.getMinutes()} ${target.getHours()} ${target.getDate()} ${target.getMonth() + 1} *`;
+}
+
+/** 命令面分发：/trace /new /task /cron /agents /help /remind /remember /recall /forget（M4 + v0.3）。 */
 async function handleCommand(
   adapter: Adapter,
   client: GatewayClient,
@@ -79,6 +95,7 @@ async function handleCommand(
   sessionId: string,
   chatId: string,
   aggregator: TrajectoryAggregator,
+  memory: MemoryStore | undefined,
 ): Promise<void> {
   switch (command.kind) {
     case 'trace': {
@@ -125,6 +142,38 @@ async function handleCommand(
       await adapter.send(chatId, { text: '（M4 简化）子任务状态由 agent 汇报，/task 派发' });
       return;
     }
+    case 'remember': {
+      if (!memory) { await adapter.send(chatId, { text: '记忆系统未启用。' }); return; }
+      const scope = memoryScope(adapter.id, sessionId.split(':')[2] ?? '');
+      const entry = memory.add(scope, command.text);
+      await adapter.send(chatId, { text: `✅ 已记住（\`${entry.id}\`）：${command.text}` });
+      return;
+    }
+    case 'recall': {
+      if (!memory) { await adapter.send(chatId, { text: '记忆系统未启用。' }); return; }
+      const scope = memoryScope(adapter.id, sessionId.split(':')[2] ?? '');
+      const hits = memory.search(scope, command.query);
+      if (hits.length === 0) { await adapter.send(chatId, { text: '没有相关记忆。' }); return; }
+      await adapter.send(chatId, {
+        text: `🧠 ${hits.length} 条记忆：\n` + hits.map((e) => `- \`${e.id}\` ${e.text}`).join('\n'),
+      });
+      return;
+    }
+    case 'forget': {
+      if (!memory) { await adapter.send(chatId, { text: '记忆系统未启用。' }); return; }
+      const scope = memoryScope(adapter.id, sessionId.split(':')[2] ?? '');
+      const ok = memory.remove(scope, command.memoryId);
+      await adapter.send(chatId, { text: ok ? `🗑️ 已删除记忆 \`${command.memoryId}\`` : `未找到记忆 \`${command.memoryId}\`` });
+      return;
+    }
+    case 'remind': {
+      const schedule = remindSchedule(command.inMinutes ?? 0, command.atTime);
+      await client.createTask({ sessionId, kind: 'cron', prompt: `⏰ 提醒：${command.text}`, schedule, once: true });
+      await adapter.send(chatId, {
+        text: `⏰ 已设置提醒「${command.text}」（${command.atTime ? `at ${command.atTime}` : `${command.inMinutes} 分钟后`}，一次性）`,
+      });
+      return;
+    }
     case 'help': {
       await adapter.send(chatId, { text: HELP_TEXT });
       return;
@@ -156,8 +205,18 @@ export async function wireAdapter(
       const command = parseCommand(msg.text);
       if (command) {
         console.log(`[gateway][${adapter.id}] 命令: ${JSON.stringify(command)}`);
-        await handleCommand(adapter, client, command, key, msg.chatId, aggregator);
+        await handleCommand(adapter, client, command, key, msg.chatId, aggregator, opts.memory);
         return;
+      }
+
+      // OpenClaw 式记忆注入：入站消息前检索相关记忆，拼到文本后让 agent「记得你」
+      if (opts.memory) {
+        const scope = memoryScope(adapter.id, msg.userId);
+        const hits = opts.memory.search(scope, msg.text);
+        if (hits.length > 0) {
+          msg.text = `${msg.text}${formatMemories(hits)}`;
+          console.log(`[gateway][${adapter.id}] 注入 ${hits.length} 条相关记忆`);
+        }
       }
 
       // ASR 语音转写：配置了 API key 时把语音消息转成文本；失败/未配置走原降级路径
@@ -246,6 +305,8 @@ async function main(): Promise<void> {
     model: env.asrModel,
   });
   if (asr.enabled) console.log('[gateway] ASR 语音转写已启用');
+  const memory = new MemoryStore(process.env.MEMORY_FILE ?? 'data/memory.json');
+  console.log(`[gateway] 记忆系统已启用（文件: ${process.env.MEMORY_FILE ?? 'data/memory.json'}）`);
 
   const client = new GatewayClient(dshBaseUrl, dshToken);
   await client.health(); // 确认 DSH 侧（或 mock）活着
@@ -253,7 +314,7 @@ async function main(): Promise<void> {
   const adapters: Adapter[] = adapterIds.map((id) => createAdapter(id, env));
   for (const adapter of adapters) {
     await adapter.connect();
-    await wireAdapter(adapter, client, { allowlist, allowAll, asr });
+    await wireAdapter(adapter, client, { allowlist, allowAll, asr, memory });
     console.log(`[gateway] ${adapter.id} 适配器已就绪`);
   }
 

@@ -133,6 +133,10 @@ No terminal skills needed. dsh-overdrive is designed to be **installed by one pe
 | `/cron <min hour dom mon dow> <prompt>` | Schedule a recurring job (built-in 5-field scheduler) |
 | `/crons` | List scheduled cron jobs (with next run time) |
 | `/cronrm <task-id>` | Delete a scheduled cron job |
+| `/remind in 10 分钟 <text>` | One-shot reminder (`at HH:MM` also works) |
+| `/remember <fact>` | Remember something about the user (long-term memory) |
+| `/recall <query>` | Recall relevant memories |
+| `/forget <memory-id>` | Delete a memory |
 | `/agents` | Subagent status (simplified) |
 | `/new` | Reset the conversation |
 

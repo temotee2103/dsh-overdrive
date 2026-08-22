@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { wireAdapter } from '../src/index.js';
+import { remindSchedule, wireAdapter } from '../src/index.js';
 import { GatewayClient } from '@dsh-overdrive/sdk';
+import { MemoryStore } from '../src/memory.js';
 import type { Adapter, NormalizedMessage, OutboundPayload, ReplySender } from '../src/adapter.js';
 
 /** 可编程 FakeAdapter：验证 wiring 逻辑（白名单/会话键/错误兜底）。 */
@@ -103,5 +104,52 @@ describe('wireAdapter（多适配器装配核心）', () => {
 
     await adapter.emit({ chatId: 'C1', userId: 'U1', text: 'hi' });
     expect(adapter.sent[0].payload.text).toContain('❌');
+  });
+
+  it('相关记忆自动注入到发给 agent 的文本（OpenClaw 式）', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client, messages } = fakeClient();
+    const memory = new MemoryStore();
+    memory.add('telegram:222', '用户喜欢美式咖啡');
+    await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'], memory });
+
+    await adapter.emit({ chatId: '111', userId: '222', text: '帮我点一杯咖啡' });
+    expect(messages[0].text).toContain('帮我点一杯咖啡');
+    expect(messages[0].text).toContain('📌 相关记忆');
+    expect(messages[0].text).toContain('用户喜欢美式咖啡');
+  });
+
+  it('无相关记忆时不注入', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client, messages } = fakeClient();
+    const memory = new MemoryStore();
+    memory.add('telegram:222', '用户喜欢美式咖啡');
+    await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'], memory });
+
+    await adapter.emit({ chatId: '111', userId: '222', text: '今天天气如何' });
+    expect(messages[0].text).toBe('今天天气如何');
+  });
+
+  it('/remember 命令写入记忆并回执', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client } = fakeClient();
+    const memory = new MemoryStore();
+    await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'], memory });
+
+    await adapter.emit({ chatId: '111', userId: '222', text: '/remember 用户住在杭州' });
+    expect(memory.count('telegram:222')).toBe(1);
+    expect(adapter.sent[0].payload.text).toContain('已记住');
+  });
+});
+
+describe('remindSchedule', () => {
+  it('相对分钟 → cron 5 字段', () => {
+    const now = new Date('2026-08-20T10:05:00');
+    expect(remindSchedule(10, null, now)).toBe('15 10 20 8 *');
+  });
+  it('定点时间 → cron；已过则推到明天', () => {
+    const now = new Date('2026-08-20T10:05:00');
+    expect(remindSchedule(0, '14:30', now)).toBe('30 14 20 8 *');
+    expect(remindSchedule(0, '09:00', now)).toBe('0 9 21 8 *');
   });
 });

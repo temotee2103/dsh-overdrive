@@ -28,10 +28,10 @@ export interface SendMessageResponse { runId: string; }
 export interface ResolveApprovalRequest { decision: 'approve' | 'reject'; }
 export interface ResolveApprovalResponse { ok: boolean; }
 
-export interface TaskRequest { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string; }
+export interface TaskRequest { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string; once?: boolean; }
 export interface TaskResponse { taskId: string; }
 
-export interface CronTaskSummary { id: string; schedule: string; prompt: string; sessionId: string; nextRunAt?: string | null; }
+export interface CronTaskSummary { id: string; schedule: string; prompt: string; sessionId: string; nextRunAt?: string | null; once?: boolean; }
 export interface ListTasksResponse { tasks: CronTaskSummary[]; }
 export interface RemoveTaskResponse { ok: boolean; }
 

@@ -200,4 +200,31 @@ describe('DshBridge', () => {
     await ctx.handlers.resetSession!('cli:cli:local');
     expect(ctx.runtime.destroyed).toEqual(['dsh:cli:cli:local']);
   });
+
+  it('一次性 cron 任务（once，/remind）触发后自动移除', async () => {
+    const runtime = new FakeRuntime();
+    const events: ServerEvent[] = [];
+    const handlers = {} as ProtocolHandlers;
+    const server = new ProtocolServer({ token: TOKEN, handlers, version: '0.1.0' });
+    const bridge = new DshBridge(server, runtime, { approvalTimeoutMs: 60_000, cronLoopIntervalMs: 50 });
+    Object.assign(handlers, bridge.handlers());
+    bridge.start();
+    server.onEvent((ev) => events.push(ev));
+    await server.listen(0);
+    try {
+      const now = new Date();
+      const schedule = `${now.getMinutes()} ${now.getHours()} * * *`;
+      const res = await handlers.createTask!({ sessionId: 'cli:cli:local', kind: 'cron', prompt: '⏰ 提醒：喝水', schedule, once: true });
+      expect(res.taskId).toMatch(/^cron-/);
+      // 等一个调度周期触发（50ms 间隔，给 500ms 余量）
+      await new Promise((r) => setTimeout(r, 500));
+      const listed = await handlers.listTasks!();
+      expect(listed.tasks).toEqual([]); // 一次性任务已移除
+      expect(runtime.followed).toHaveLength(1); // 触发了一次 followup
+      expect(String(runtime.followed[0].msg).length).toBeGreaterThan(0);
+    } finally {
+      bridge.dispose();
+      await server.close();
+    }
+  });
 });
