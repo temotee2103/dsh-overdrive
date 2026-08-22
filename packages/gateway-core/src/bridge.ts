@@ -6,7 +6,7 @@ import {
   type ServerEvent,
 } from '@dsh-overdrive/sdk';
 import type { ApprovalOutcome, ApprovalRequestLike, DshRuntime } from './dsh-runtime.js';
-import { cronMatches, parseCron, type CronSchedule } from './cron.js';
+import { cronMatches, nextRunTime, parseCron, type CronSchedule } from './cron.js';
 import { deriveProtocolEvents } from './derive.js';
 import { fromDshSessionId, toDshSessionId } from './keys.js';
 
@@ -158,11 +158,19 @@ export class DshBridge {
         return { taskId: result.taskId };
       },
       listTasks: async () => {
+        const now = new Date();
         const tasks = [...this.cronJobs.values()].map((job) => ({
           id: job.id,
           schedule: job.schedule,
           prompt: job.prompt,
           sessionId: job.sessionId,
+          nextRunAt: (() => {
+            try {
+              return nextRunTime(job.cron, now).toISOString();
+            } catch {
+              return null; // 一年内无下次触发（极端 schedule）
+            }
+          })(),
         }));
         return { tasks };
       },

@@ -169,6 +169,7 @@ describe('DshBridge', () => {
       schedule: '0 8 * * *',
       prompt: '日报',
       sessionId: 'cli:cli:local',
+      nextRunAt: expect.any(String),
     });
     expect(await ctx.handlers.removeTask!(res.taskId)).toEqual({ ok: true });
     expect(await ctx.handlers.listTasks!()).toEqual({ tasks: [] });

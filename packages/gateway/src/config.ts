@@ -7,6 +7,7 @@ import { SlackAdapter } from './adapters/slack.js';
 import { FeishuAdapter } from './adapters/feishu.js';
 import { DingTalkAdapter } from './adapters/dingtalk.js';
 import { WeComAdapter } from './adapters/wecom.js';
+import { WeChatAdapter } from './adapters/wechat.js';
 
 /** 平台适配器需要的全部环境变量（缺省为 undefined = 不启用该平台）。 */
 export interface AdapterEnv {
@@ -25,6 +26,8 @@ export interface AdapterEnv {
   wecomToken?: string;
   wecomEncodingAESKey?: string;
   wecomCallbackPort?: string;
+  wechatToken?: string;
+  wechatStateDir?: string;
   asrApiKey?: string;
   asrBaseUrl?: string;
   asrModel?: string;
@@ -66,6 +69,9 @@ export function createAdapter(id: string, env: AdapterEnv): Adapter {
         token: env.wecomToken, encodingAESKey: env.wecomEncodingAESKey,
         callbackPort: Number(env.wecomCallbackPort ?? 3193),
       });
+    case 'wechat':
+      // 实验性（v0.2b）：token 可缺省——未配置时启动扫码登录（iLink/ClawBot）
+      return new WeChatAdapter({ token: env.wechatToken, stateDir: env.wechatStateDir ?? 'data/wechat' });
     default:
       throw new Error(`unknown adapter: ${id}`);
   }
@@ -89,6 +95,8 @@ export function adapterEnvFromProcess(env: NodeJS.ProcessEnv = process.env): Ada
     wecomToken: env.WECOM_TOKEN,
     wecomEncodingAESKey: env.WECOM_ENCODING_AES_KEY,
     wecomCallbackPort: env.WECOM_CALLBACK_PORT,
+    wechatToken: env.WECHAT_TOKEN,
+    wechatStateDir: env.WECHAT_STATE_DIR,
     asrApiKey: env.ASR_API_KEY,
     asrBaseUrl: env.ASR_BASE_URL,
     asrModel: env.ASR_MODEL,

@@ -81,6 +81,7 @@ Follow the 3-minute script in [docs/demo.md](docs/demo.md): chat → `/trace` re
 | **飞书 Feishu** | Official SDK, WS long-connection | ✅ |
 | **钉钉 DingTalk** | Stream mode (WebSocket, no public URL) | ✅ |
 | **企业微信 WeCom** | Callback API (AES) | ✅ |
+| **WeChat** (personal) | iLink / ClawBot protocol (experimental, v0.2b) | 🧪 已实现，需真实设备验证 |
 | CLI | stdin/stdout (dev & E2E) | ✅ |
 
 ## Quick start
@@ -130,7 +131,7 @@ No terminal skills needed. dsh-overdrive is designed to be **installed by one pe
 | `/trace` | Replay the latest turn's trajectory (thoughts + tool calls) |
 | `/task <prompt>` | Spawn a subagent |
 | `/cron <min hour dom mon dow> <prompt>` | Schedule a recurring job (built-in 5-field scheduler) |
-| `/crons` | List scheduled cron jobs |
+| `/crons` | List scheduled cron jobs (with next run time) |
 | `/cronrm <task-id>` | Delete a scheduled cron job |
 | `/agents` | Subagent status (simplified) |
 | `/new` | Reset the conversation |
@@ -180,7 +181,7 @@ npm run e2e        # full-stack mock E2E (message / approval / allowlist)
 - [x] M4: trajectory cards, `/task` `/cron`, streaming typing, media, WhatsApp native buttons
 - [x] M5: docker-compose, web console, MIT + CI, npm distribution
 - [x] v0.2a: ASR voice transcription (OpenAI-compatible endpoint, `ASR_API_KEY`), Feishu interactive approval cards, DingTalk actionCard approval
-- [ ] v0.2b: personal WeChat (experimental)
+- [x] v0.2b: personal WeChat via official iLink / ClawBot protocol (experimental — implemented, needs real-device verification)
 
 ## 📚 Listings
 

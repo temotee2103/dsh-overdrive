@@ -104,7 +104,12 @@ async function handleCommand(
     case 'crons': {
       const res = await client.listTasks();
       const text = res.tasks.length
-        ? res.tasks.map((task) => `- \`${task.id}\` ${task.schedule} — ${task.prompt}`).join('\n')
+        ? res.tasks.map((task) => {
+            const next = task.nextRunAt
+              ? new Date(task.nextRunAt).toLocaleString('zh-CN', { hour12: false })
+              : '（无下次触发）';
+            return `- \`${task.id}\` ${task.schedule} — ${task.prompt}（下次 ${next}）`;
+          }).join('\n')
         : '暂无定时任务。';
       await adapter.send(chatId, { text: `⏰ 定时任务（${res.tasks.length}）:\n${text}` });
       return;
