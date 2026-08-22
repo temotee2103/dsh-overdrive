@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MemoryStore, formatMemories, memoryScope, searchMemories } from '../src/memory.js';
+import { MemoryStore, extractAutoMemories, formatMemories, memoryScope, searchMemories } from '../src/memory.js';
 
 describe('memoryScope', () => {
   it('按 platform:userId 作用域（记忆跟随用户跨频道）', () => {
@@ -56,5 +56,24 @@ describe('MemoryStore（内存模式）', () => {
     store.add('whatsapp:u1', 'B 的记忆');
     expect(store.list('telegram:u1')).toHaveLength(1);
     expect(store.list('whatsapp:u1')).toHaveLength(1);
+  });
+});
+
+describe('extractAutoMemories', () => {
+  it('识别自我事实（我叫/我住在/我喜欢/我的邮箱等）', () => {
+    expect(extractAutoMemories('你好，我叫小明')).toEqual(['我叫小明']);
+    expect(extractAutoMemories('我住在杭州')).toEqual(['我住在杭州']);
+    expect(extractAutoMemories('我喜欢喝美式咖啡')).toEqual(['我喜欢喝美式咖啡']);
+    expect(extractAutoMemories('我的邮箱是 a@b.com，麻烦发我')).toEqual(['我的邮箱是 a@b.com']);
+    expect(extractAutoMemories('我的职业是产品经理')).toEqual(['我的职业是产品经理']);
+  });
+  it('普通消息不触发', () => {
+    expect(extractAutoMemories('今天天气如何')).toEqual([]);
+    expect(extractAutoMemories('帮我写个脚本')).toEqual([]);
+  });
+  it('同一消息多模式只取各自匹配', () => {
+    const facts = extractAutoMemories('我叫小红，我住在上海');
+    expect(facts).toContain('我叫小红');
+    expect(facts).toContain('我住在上海');
   });
 });

@@ -1,4 +1,5 @@
 import { createHash, createDecipheriv, createCipheriv, randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
 import { PendingButtons } from '../pending-buttons.js';
@@ -152,8 +153,36 @@ export class WeComAdapter implements Adapter {
 
   async send(chatId: string, payload: OutboundPayload): Promise<void> {
     if (payload.buttons?.length) this.pendingButtons.set(chatId, payload.buttons);
-    const text = buildNumberedText(payload.text, payload.buttons ?? []);
     const token = await this.fetchAccessToken();
+    if (payload.media) {
+      // 媒体发送：media/upload 换 media_id → message/send；失败降级为文本（含 📎 路径）
+      try {
+        const mediaType = payload.media.kind === 'image' ? 'image' : 'file';
+        const buf = readFileSync(payload.media.path);
+        const form = new FormData();
+        form.append('media', new Blob([buf]), payload.media.caption ?? payload.media.path.split('/').pop() ?? 'file');
+        const upload = (await fetch(
+          `https://qyapi.weixin.qq.com/cgi-bin/media/upload?access_token=${encodeURIComponent(token)}&type=${mediaType}`,
+          { method: 'POST', body: form },
+        ).then((r) => r.json())) as { media_id?: string; errcode?: number };
+        if (!upload.media_id) throw new Error(`media 上传失败: ${upload.errcode}`);
+        const sendRes = (await fetch(`https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${encodeURIComponent(token)}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            touser: chatId,
+            msgtype: mediaType,
+            agentid: this.opts.agentId,
+            [mediaType]: { media_id: upload.media_id },
+          }),
+          headers: { 'content-type': 'application/json' },
+        }).then((r) => r.json())) as { errcode?: number; errmsg?: string };
+        if (sendRes.errcode !== 0) throw new Error(`企业微信媒体发送失败: ${sendRes.errcode} ${sendRes.errmsg}`);
+        return;
+      } catch (error) {
+        console.warn(`[wecom] 媒体发送失败，降级为文本: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    const text = buildNumberedText(payload.text, payload.buttons ?? []);
     const res = await fetch(`https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${encodeURIComponent(token)}`, {
       method: 'POST',
       body: JSON.stringify({

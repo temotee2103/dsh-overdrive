@@ -45,6 +45,31 @@ export function formatMemories(entries: MemoryEntry[]): string {
   return `\n📌 相关记忆：\n${lines}`;
 }
 
+// 自动记忆（OpenClaw 式 auto-memory 的轻量版）：识别用户明确陈述的自我事实。
+const AUTO_MEMORY_PATTERNS: RegExp[] = [
+  /我叫\s*([^\s,，。！？!?]{1,20})/,
+  /我的名字是\s*([^\s,，。！？!?]{1,20})/,
+  /我住在\s*([^\s,，。！？!?]{1,30})/,
+  /我的邮箱是\s*([^\s,，。！？!?]{1,50})/,
+  /我的电话(?:是|号码)?[:：]?\s*([^\s,，。！？!?]{1,30})/,
+  /我喜欢\s*([^\s,，。！？!?]{1,30})/,
+  /我的职业是\s*([^\s,，。！？!?]{1,30})/,
+  /我是做\s*([^\s,，。！？!?]{1,30})/,
+];
+
+/** 纯函数：从用户消息中提取可自动记忆的自我事实（如「我叫XX」「我住在XX」）。 */
+export function extractAutoMemories(text: string): string[] {
+  const out: string[] = [];
+  for (const re of AUTO_MEMORY_PATTERNS) {
+    const m = re.exec(text);
+    if (m) {
+      const full = m[0].replace(/\s+/g, ' ').trim();
+      if (full.length >= 3 && !out.includes(full)) out.push(full);
+    }
+  }
+  return out;
+}
+
 /** JSON 文件持久化的记忆存储；file 缺省时仅内存（测试/无盘环境用）。 */
 export class MemoryStore {
   private readonly data = new Map<string, MemoryEntry[]>();

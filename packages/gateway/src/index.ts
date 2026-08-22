@@ -9,7 +9,7 @@ import { parseCommand, HELP_TEXT, type ParsedCommand } from './commands.js';
 import { TrajectoryAggregator, formatTrajectorySummary } from './trajectory.js';
 import { createStatusServer } from './status.js';
 import { createTranscriber, type AsrTranscriber } from './asr.js';
-import { MemoryStore, memoryScope, formatMemories } from './memory.js';
+import { MemoryStore, memoryScope, formatMemories, extractAutoMemories } from './memory.js';
 
 /**
  * message.delta → 打字指示去重：同一 turn 内首个 delta 触发一次 typing，
@@ -74,6 +74,8 @@ export interface WireOptions {
   asr?: AsrTranscriber;
   /** 记忆系统（OpenClaw 式长期记忆）；未提供则记忆命令返回不可用。 */
   memory?: MemoryStore;
+  /** 人设（persona）：每条用户消息前注入的固定上下文，如「你是一个毒舌但贴心的私人助理」。 */
+  persona?: string;
 }
 
 /** 纯函数：一次性提醒的时间 → cron 5 字段表达式（分钟精度）。 */
@@ -255,6 +257,17 @@ export async function wireAdapter(
           msg.text = `${msg.text}${formatMemories(hits)}`;
           console.log(`[gateway][${adapter.id}] 注入 ${hits.length} 条相关记忆`);
         }
+        // 自动记忆：识别「我叫XX」「我住在XX」等自我事实，自动沉淀（不重复保存）
+        for (const fact of extractAutoMemories(msg.text)) {
+          if (!opts.memory.list(scope).some((e) => e.text === fact)) {
+            opts.memory.add(scope, fact);
+            console.log(`[gateway][${adapter.id}] 自动记住: ${fact}`);
+          }
+        }
+      }
+      // persona：每条用户消息前置人设上下文（消息级注入，任何模型都生效）
+      if (opts.persona) {
+        msg.text = `【人设】${opts.persona}\n${msg.text}`;
       }
 
       // ASR 语音转写：配置了 API key 时把语音消息转成文本；失败/未配置走原降级路径
@@ -352,8 +365,10 @@ async function main(): Promise<void> {
   const adapters: Adapter[] = adapterIds.map((id) => createAdapter(id, env));
   for (const adapter of adapters) {
     await adapter.connect();
-    await wireAdapter(adapter, client, { allowlist, allowAll, asr, memory });
-    console.log(`[gateway] ${adapter.id} 适配器已就绪`);
+    // 人设：PERSONA_<ADAPTER_ID>（如 PERSONA_TELEGRAM）优先，回退 PERSONA
+    const persona = process.env[`PERSONA_${adapter.id.toUpperCase()}`] ?? process.env.PERSONA;
+    await wireAdapter(adapter, client, { allowlist, allowAll, asr, memory, persona });
+    console.log(`[gateway] ${adapter.id} 适配器已就绪${persona ? `（人设: ${persona.slice(0, 20)}…）` : ''}`);
   }
 
   const consolePort = Number(process.env.GATEWAY_CONSOLE_PORT ?? 3190);

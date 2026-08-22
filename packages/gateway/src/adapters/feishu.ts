@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import lark from '@larksuiteoapi/node-sdk';
 import type { Adapter, NormalizedMessage, OutboundButton, OutboundPayload } from '../adapter.js';
 import { PendingButtons } from '../pending-buttons.js';
@@ -150,6 +151,38 @@ export class FeishuAdapter implements Adapter {
   }
 
   async send(chatId: string, payload: OutboundPayload): Promise<void> {
+    if (payload.media) {
+      // 媒体发送：上传 → 换取 image_key / file_key → 发消息；失败降级为文本路径
+      try {
+        const buf = readFileSync(payload.media.path);
+        const messageId = this.lastMessageIds.get(chatId);
+        if (payload.media.kind === 'image') {
+          const uploaded = await this.client.im.image.create({
+            data: { image_type: 'message', image: buf },
+          });
+          const content = JSON.stringify({ image_key: uploaded?.image_key ?? '' });
+          if (messageId) {
+            await this.client.im.message.reply({ path: { message_id: messageId }, data: { msg_type: 'image', content } });
+          } else {
+            await this.client.im.message.create({ params: { receive_id_type: 'chat_id' }, data: { receive_id: chatId, msg_type: 'image', content } });
+          }
+          return;
+        }
+        const uploaded = await this.client.im.file.create({
+          data: { file_type: 'stream', file_name: payload.media.caption ?? payload.media.path.split('/').pop() ?? 'file', file: buf },
+        });
+        const content = JSON.stringify({ file_key: uploaded?.file_key ?? '' });
+        if (messageId) {
+          await this.client.im.message.reply({ path: { message_id: messageId }, data: { msg_type: 'file', content } });
+        } else {
+          await this.client.im.message.create({ params: { receive_id_type: 'chat_id' }, data: { receive_id: chatId, msg_type: 'file', content } });
+        }
+        return;
+      } catch (error) {
+        console.warn(`[feishu] 媒体上传失败，降级为文本: ${error instanceof Error ? error.message : String(error)}`);
+        // 继续走文本发送（含 📎 路径）
+      }
+    }
     if (payload.buttons?.length) {
       this.pendingButtons.set(chatId, payload.buttons); // 卡片之外仍支持编号回复兜底
       const content = buildApprovalCard(payload.text, payload.buttons);

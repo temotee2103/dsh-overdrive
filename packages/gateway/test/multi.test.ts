@@ -145,6 +145,27 @@ describe('wireAdapter（多适配器装配核心）', () => {
     expect(adapter.sent[0].payload.text).toContain('已记住');
   });
 
+  it('自动记忆：自我事实消息自动沉淀', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client } = fakeClient();
+    const memory = new MemoryStore();
+    await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'], memory });
+
+    await adapter.emit({ chatId: '111', userId: '222', text: '你好，我叫小明，我住在杭州' });
+    expect(memory.count('telegram:222')).toBe(2);
+    expect(memory.list('telegram:222').map((e) => e.text)).toContain('我叫小明');
+    expect(memory.list('telegram:222').map((e) => e.text)).toContain('我住在杭州');
+  });
+
+  it('persona：每条消息前置人设', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client, messages } = fakeClient();
+    await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'], persona: '你是一个毒舌助理' });
+
+    await adapter.emit({ chatId: '111', userId: '222', text: '你好' });
+    expect(messages[0].text).toBe('【人设】你是一个毒舌助理\n你好');
+  });
+
   it('/send <path> 读取文件并以媒体载荷发送', async () => {
     const adapter = new FakeAdapter('telegram');
     const { client } = fakeClient();
