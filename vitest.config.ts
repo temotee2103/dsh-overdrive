@@ -9,7 +9,6 @@ export default defineConfig({
   },
   test: {
     include: ['packages/*/test/**/*.test.ts'],
-    // 排除工作区里其他 DSH 项目的构建/存储目录（vitest glob 会匹配任意深度的 packages/ 段）
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
