@@ -2,3 +2,6 @@ node_modules/
 dist/
 reference/
 *.log
+# DSH 构建产物 / 存储目录（不属于本仓库）
+.dsh-plugin-builds/
+.pnpm-store/
