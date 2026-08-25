@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mediaKindFromPath, remindSchedule, wireAdapter } from '../src/index.js';
 import { GatewayClient, type ServerEvent } from '@dsh-overdrive/sdk';
-import { MemoryStore } from '../src/memory.js';
+import { MemoryStore, TopicStore } from '../src/memory.js';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
@@ -184,6 +184,32 @@ describe('wireAdapter（多适配器装配核心）', () => {
     expect(adapter.sent[0].payload.text).toContain('chart.png');
     expect(adapter.sent[0].payload.media).toMatchObject({ kind: 'image', caption: 'chart.png' });
     expect(existsSync(adapter.sent[0].payload.media!.path)).toBe(false); // 临时文件已清理
+  });
+
+  it('群聊提及模式：群聊未提及不响应，提及才响应', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client, messages } = fakeClient();
+    await wireAdapter(adapter, client, { allowlist: ['telegram:-100123:222'], requireMention: true, botIdentity: 'mybot' });
+
+    await adapter.emit({ chatId: '-100123', userId: '222', text: '你好' }); // 群聊（负 ID）未提及
+    expect(messages).toHaveLength(0);
+    await adapter.emit({ chatId: '-100123', userId: '222', text: '@mybot 你好' }); // 提及
+    expect(messages).toHaveLength(1);
+  });
+
+  it('/context 设置/清除会话主题并注入到消息', async () => {
+    const adapter = new FakeAdapter('telegram');
+    const { client, messages } = fakeClient();
+    const topics = new TopicStore();
+    await wireAdapter(adapter, client, { allowlist: ['telegram:111:222'], topics });
+
+    await adapter.emit({ chatId: '111', userId: '222', text: '/context 项目重构' });
+    expect(adapter.sent[0].payload.text).toContain('已绑定');
+    await adapter.emit({ chatId: '111', userId: '222', text: '帮我写周报' });
+    expect(messages[0].text).toBe('【会话主题】项目重构\n帮我写周报');
+    await adapter.emit({ chatId: '111', userId: '222', text: '/context off' });
+    await adapter.emit({ chatId: '111', userId: '222', text: '你好' });
+    expect(messages[1].text).toBe('你好');
   });
 
   it('/send <path> 读取文件并以媒体载荷发送', async () => {

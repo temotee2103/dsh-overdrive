@@ -40,4 +40,14 @@ describe('parseCommand', () => {
     expect(parseCommand('/status')).toEqual({ kind: 'status' });
     expect(parseCommand('/send')).toBeNull(); // 缺路径
   });
+  it('识别 /cron --tz 时区', () => {
+    expect(parseCommand('/cron 0 8 * * * 每日汇报 --tz Asia/Shanghai'))
+      .toEqual({ kind: 'cron', schedule: '0 8 * * *', prompt: '每日汇报', timeZone: 'Asia/Shanghai' });
+    expect(parseCommand('/cron 0 8 * * * 每日汇报')).toEqual({ kind: 'cron', schedule: '0 8 * * *', prompt: '每日汇报', timeZone: undefined });
+  });
+  it('识别 /context', () => {
+    expect(parseCommand('/context 项目重构')).toEqual({ kind: 'context', action: 'set', topic: '项目重构' });
+    expect(parseCommand('/context off')).toEqual({ kind: 'context', action: 'clear' });
+    expect(parseCommand('/context')).toEqual({ kind: 'context', action: 'show' });
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cronMatches, nextRunTime, parseCron } from '../src/cron.js';
+import { cronMatches, datePartsInTz, nextRunTime, parseCron } from '../src/cron.js';
 
 describe('parseCron（5 字段）', () => {
   it('解析合法表达式', () => {
@@ -45,5 +45,30 @@ describe('nextRunTime', () => {
     const cron = parseCron('30 9 * * 1');
     // 2026-08-14 是周五 → 下次周一是 2026-08-17 09:30
     expect(nextRunTime(cron, new Date(2026, 7, 14, 12, 0))).toEqual(new Date(2026, 7, 17, 9, 30));
+  });
+});
+
+describe('datePartsInTz / cronMatches 时区', () => {
+  // 固定一个 UTC 时刻：2026-08-20T00:30:00Z
+  // Asia/Shanghai = UTC+8 → 08:30（周四）；America/New_York（EDT）= UTC-4 → 20:30（周三）
+  const instant = new Date('2026-08-20T00:30:00Z');
+  it('datePartsInTz 按 IANA 时区拆解', () => {
+    const sh = datePartsInTz(instant, 'Asia/Shanghai');
+    expect(sh).toMatchObject({ minute: 30, hour: 8, day: 20, month: 8, weekday: 4 }); // 周四
+    const ny = datePartsInTz(instant, 'America/New_York');
+    expect(ny).toMatchObject({ minute: 30, hour: 20, day: 19, month: 8, weekday: 3 }); // 周三
+  });
+  it('同一时刻在不同时区命中不同的 cron 表达式', () => {
+    const cronSh = parseCron('30 8 * * *'); // 上海 08:30
+    const cronNy = parseCron('30 20 * * *'); // 纽约 20:30
+    expect(cronMatches(cronSh, instant, 'Asia/Shanghai')).toBe(true);
+    expect(cronMatches(cronSh, instant, 'America/New_York')).toBe(false);
+    expect(cronMatches(cronNy, instant, 'America/New_York')).toBe(true);
+    expect(cronMatches(cronNy, instant, 'Asia/Shanghai')).toBe(false);
+  });
+  it('nextRunTime 带时区', () => {
+    const cron = parseCron('0 9 * * *');
+    // 从 2026-08-20T00:00:00Z 开始找上海 09:00 → 当天 01:00Z
+    expect(nextRunTime(cron, new Date('2026-08-20T00:00:00Z'), 'Asia/Shanghai')).toEqual(new Date('2026-08-20T01:00:00Z'));
   });
 });

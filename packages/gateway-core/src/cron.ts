@@ -39,22 +39,62 @@ function fieldMatches(field: number[] | '*', value: number): boolean {
   return field === '*' || field.includes(value);
 }
 
-export function cronMatches(cron: CronSchedule, date: Date): boolean {
-  if (!fieldMatches(cron.minute, date.getMinutes())) return false;
-  if (!fieldMatches(cron.hour, date.getHours())) return false;
-  if (!fieldMatches(cron.dayOfMonth, date.getDate())) return false;
-  if (!fieldMatches(cron.month, date.getMonth() + 1)) return false;
-  if (!fieldMatches(cron.dayOfWeek, date.getDay())) return false;
+/** 纯函数：取 Date 在指定 IANA 时区下的「分 时 日 月 周几」。tz 缺省用本地时区。 */
+export function datePartsInTz(
+  date: Date,
+  tz?: string,
+): { minute: number; hour: number; day: number; month: number; weekday: number } {
+  if (!tz) {
+    return {
+      minute: date.getMinutes(),
+      hour: date.getHours(),
+      day: date.getDate(),
+      month: date.getMonth() + 1,
+      weekday: date.getDay(),
+    };
+  }
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23', // 24 小时制（en-US 默认 12 小时会把 20 点拆成 8 + PM）
+    minute: 'numeric',
+    hour: 'numeric',
+    day: 'numeric',
+    month: 'numeric',
+    weekday: 'short',
+  }).formatToParts(date);
+  const get = (type: string): number => {
+    const p = parts.find((x) => x.type === type);
+    return p ? Number(p.value) : NaN;
+  };
+  // weekday 缩写（"Mon"…）→ 0-6（Sun=0）
+  const weekdayMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const weekdayRaw = parts.find((x) => x.type === 'weekday')?.value.toLowerCase() ?? '';
+  return {
+    minute: get('minute'),
+    hour: get('hour'),
+    day: get('day'),
+    month: get('month'),
+    weekday: weekdayMap[weekdayRaw] ?? NaN,
+  };
+}
+
+export function cronMatches(cron: CronSchedule, date: Date, tz?: string): boolean {
+  const p = datePartsInTz(date, tz);
+  if (!fieldMatches(cron.minute, p.minute)) return false;
+  if (!fieldMatches(cron.hour, p.hour)) return false;
+  if (!fieldMatches(cron.dayOfMonth, p.day)) return false;
+  if (!fieldMatches(cron.month, p.month)) return false;
+  if (!fieldMatches(cron.dayOfWeek, p.weekday)) return false;
   return true;
 }
 
 /** 下一次命中时间（精确到分钟），用于调度循环对齐。 */
-export function nextRunTime(cron: CronSchedule, from: Date): Date {
+export function nextRunTime(cron: CronSchedule, from: Date, tz?: string): Date {
   const t = new Date(from);
   t.setSeconds(0, 0);
   for (let i = 0; i < 60 * 24 * 366; i++) {
     t.setMinutes(t.getMinutes() + 1);
-    if (cronMatches(cron, t)) return t;
+    if (cronMatches(cron, t, tz)) return t;
   }
   throw new Error('无法在一年内找到 cron 下次执行时间');
 }

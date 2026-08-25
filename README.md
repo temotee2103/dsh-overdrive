@@ -130,10 +130,11 @@ No terminal skills needed. dsh-overdrive is designed to be **installed by one pe
 | `/help` | List commands |
 | `/trace` | Replay the latest turn's trajectory (thoughts + tool calls) |
 | `/task <prompt>` | Spawn a subagent |
-| `/cron <min hour dom mon dow> <prompt>` | Schedule a recurring job (built-in 5-field scheduler) |
+| `/cron <min hour dom mon dow> <prompt> [--tz <IANA>]` | Schedule a recurring job (optional timezone) |
 | `/crons` | List scheduled cron jobs (with next run time) |
 | `/cronrm <task-id>` | Delete a scheduled cron job |
 | `/remind in 10 分钟 <text>` | One-shot reminder (`at HH:MM` also works) |
+| `/context <topic>` | Bind a topic to this conversation (`off` clears, no arg shows) |
 | `/remember <fact>` | Remember something about the user (long-term memory) |
 | `/recall <query>` | Recall relevant memories |
 | `/forget <memory-id>` | Delete a memory |
@@ -145,6 +146,8 @@ No terminal skills needed. dsh-overdrive is designed to be **installed by one pe
 | `/new` | Reset the conversation |
 
 > Agent-produced files (images/docs) are **auto-sent** to the chat at the end of each turn (scan the agent workspace, base64 over the protocol).
+
+> Group chats: with `GROUP_MENTION=1`, the agent only responds in groups when mentioned / replied (private chats always respond). Long replies are auto-chunked with `(i/n)` markers; approvals accept keywords too (`批准` / `拒绝` / `yes` / `no`).
 
 ## Architecture
 

@@ -38,6 +38,8 @@ interface CronJob {
   prompt: string;
   /** 一次性任务（/remind）：触发一次后自动删除。 */
   once?: boolean;
+  /** IANA 时区（如 Asia/Shanghai）；缺省用宿主本地时区。 */
+  timeZone?: string;
   /** 上次触发的分钟桶（ms），防止同一分钟重复触发。 */
   lastFiredAtMs: number;
 }
@@ -155,7 +157,7 @@ export class DshBridge {
 
     for (const job of this.cronJobs.values()) {
       if (job.lastFiredAtMs === bucketMs) continue; // 本分钟已触发
-      if (!cronMatches(job.cron, now)) continue;
+      if (!cronMatches(job.cron, now, job.timeZone)) continue;
       job.lastFiredAtMs = bucketMs;
       try {
         const { platform, channel, user } = parseSessionKey(job.sessionId);
@@ -205,6 +207,7 @@ export class DshBridge {
             cron,
             prompt: req.prompt,
             once: req.once ?? false,
+            timeZone: req.timeZone,
             lastFiredAtMs: -1,
           });
           return { taskId };
@@ -223,9 +226,10 @@ export class DshBridge {
           prompt: job.prompt,
           sessionId: job.sessionId,
           once: job.once ?? false,
+          timeZone: job.timeZone,
           nextRunAt: (() => {
             try {
-              return nextRunTime(job.cron, now).toISOString();
+              return nextRunTime(job.cron, now, job.timeZone).toISOString();
             } catch {
               return null; // 一年内无下次触发（极端 schedule）
             }

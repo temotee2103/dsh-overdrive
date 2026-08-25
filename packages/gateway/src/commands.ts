@@ -4,9 +4,10 @@ export type ParsedCommand =
   | { kind: 'agents' }
   | { kind: 'help' }
   | { kind: 'task'; prompt: string }
-  | { kind: 'cron'; schedule: string; prompt: string }
+  | { kind: 'cron'; schedule: string; prompt: string; timeZone?: string }
   | { kind: 'crons' }
   | { kind: 'cronrm'; taskId: string }
+  | { kind: 'context'; action: 'set' | 'clear' | 'show'; topic?: string }
   | { kind: 'remember'; text: string }
   | { kind: 'recall'; query: string }
   | { kind: 'forget'; memoryId: string }
@@ -19,8 +20,8 @@ export type ParsedCommand =
   | { kind: 'digest' }
   | { kind: 'digestdaily'; time: string };
 
-// cron 语法：/cron <分 时 日 月 周> <需求>（schedule 为 5 个空白分隔字段）
-const CRON_RE = /^\/cron\s+(\S+\s+\S+\s+\S+\s+\S+\s+\S+)\s+(.+)$/;
+// cron 语法：/cron <分 时 日 月 周> <需求> [--tz <IANA时区>]
+const CRON_RE = /^\/cron\s+(\S+\s+\S+\s+\S+\s+\S+\s+\S+)\s+(.+?)(?:\s+--tz\s+(\S+))?$/;
 // /remind in N 分钟/小时/天 <text>（也支持 min/minutes/hour/hours/day/days）；或 /remind at HH:MM <text>
 const REMIND_IN_RE = /^\/remind\s+in\s+(\d+)\s+(\S+)\s+(.+)$/i;
 const REMIND_AT_RE = /^\/remind\s+at\s+(\d{1,2}:\d{2})\s+(.+)$/i;
@@ -36,9 +37,16 @@ export function parseCommand(text: string): ParsedCommand | null {
   const task = trimmed.match(/^\/task\s+(.+)$/);
   if (task) return { kind: 'task', prompt: task[1] };
   const cron = trimmed.match(CRON_RE);
-  if (cron) return { kind: 'cron', schedule: cron[1], prompt: cron[2] };
+  if (cron) return { kind: 'cron', schedule: cron[1], prompt: cron[2].trim(), timeZone: cron[3] };
   const cronrm = trimmed.match(/^\/cronrm\s+(\S+)$/);
   if (cronrm) return { kind: 'cronrm', taskId: cronrm[1] };
+  const context = trimmed.match(/^\/context\s+(.+)$/);
+  if (context) {
+    const topic = context[1].trim();
+    if (topic === 'off' || topic === '清除' || topic === 'clear') return { kind: 'context', action: 'clear' };
+    return { kind: 'context', action: 'set', topic };
+  }
+  if (trimmed === '/context') return { kind: 'context', action: 'show' };
   const remember = trimmed.match(/^\/remember\s+(.+)$/);
   if (remember) return { kind: 'remember', text: remember[1] };
   const recall = trimmed.match(/^\/recall\s*(.*)$/);
@@ -71,9 +79,10 @@ export const HELP_TEXT = [
   '/help — 帮助',
   '/trace — 查看最近一轮轨迹',
   '/task <需求> — 派子任务',
-  '/cron <分 时 日 月 周> <需求> — 定时任务',
+  '/cron <分 时 日 月 周> <需求> [--tz 时区] — 定时任务',
   '/crons — 查看定时任务列表',
   '/cronrm <任务id> — 删除定时任务',
+  '/context <主题> — 绑定当前会话主题（off 清除）',
   '/remind in 10 分钟 <提醒内容> — 一次性定时提醒（也支持 at HH:MM）',
   '/remember <事实> — 记住关于我的事',
   '/recall <关键词> — 回忆相关记忆',

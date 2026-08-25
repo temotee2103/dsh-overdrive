@@ -131,3 +131,46 @@ export class MemoryStore {
     return this.list(scope).length;
   }
 }
+
+/** 会话主题存储（/context）：sessionKey → 主题，JSON 持久化；file 缺省仅内存。 */
+export class TopicStore {
+  private readonly map = new Map<string, string>();
+  private readonly file?: string;
+
+  constructor(file?: string) {
+    this.file = file;
+    if (file && existsSync(file)) {
+      try {
+        const parsed = JSON.parse(readFileSync(file, 'utf8')) as Record<string, string>;
+        for (const [k, v] of Object.entries(parsed)) if (typeof v === 'string') this.map.set(k, v);
+      } catch {
+        /* 损坏则从空开始 */
+      }
+    }
+  }
+
+  private persist(): void {
+    if (!this.file) return;
+    try {
+      mkdirSync(dirname(this.file), { recursive: true });
+      writeFileSync(this.file, JSON.stringify(Object.fromEntries(this.map), null, 2), 'utf8');
+    } catch {
+      /* 持久化失败不阻断 */
+    }
+  }
+
+  set(sessionKey: string, topic: string): void {
+    this.map.set(sessionKey, topic);
+    this.persist();
+  }
+
+  get(sessionKey: string): string | undefined {
+    return this.map.get(sessionKey);
+  }
+
+  clear(sessionKey: string): boolean {
+    const removed = this.map.delete(sessionKey);
+    if (removed) this.persist();
+    return removed;
+  }
+}

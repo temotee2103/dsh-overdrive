@@ -58,4 +58,43 @@ describe('PendingButtons', () => {
     expect(pb.match('chat-2', '1')).toEqual({ id: 'b', label: '拒绝' });
     expect(pb.match('chat-1', '1')).toEqual({ id: 'a', label: '同意' });
   });
+
+  it('文字审批关键词：批准/同意/yes → approve 按钮', () => {
+    const pb = new PendingButtons();
+    pb.set('chat-1', [
+      { id: 'approve:r1', label: '✅ 同意' },
+      { id: 'reject:r1', label: '🚫 拒绝' },
+    ]);
+    expect(pb.match('chat-1', '批准')).toEqual({ id: 'approve:r1', label: '✅ 同意' });
+    pb.set('chat-1', [
+      { id: 'approve:r2', label: '✅ 同意' },
+      { id: 'reject:r2', label: '🚫 拒绝' },
+    ]);
+    expect(pb.match('chat-1', 'yes')).toEqual({ id: 'approve:r2', label: '✅ 同意' });
+    pb.set('chat-1', [
+      { id: 'approve:r3', label: '✅ 同意' },
+      { id: 'reject:r3', label: '🚫 拒绝' },
+    ]);
+    expect(pb.match('chat-1', '同意 好的')).toEqual({ id: 'approve:r3', label: '✅ 同意' });
+  });
+
+  it('文字审批关键词：拒绝/no → reject 按钮', () => {
+    const pb = new PendingButtons();
+    pb.set('chat-1', [
+      { id: 'approve:r1', label: '✅ 同意' },
+      { id: 'reject:r1', label: '🚫 拒绝' },
+    ]);
+    expect(pb.match('chat-1', '拒绝')).toEqual({ id: 'reject:r1', label: '🚫 拒绝' });
+    expect(pb.match('chat-1', 'no')).toBeUndefined(); // 已消费
+  });
+
+  it('关键词审批与数字互斥、无关文本不命中', () => {
+    const pb = new PendingButtons();
+    pb.set('chat-1', [
+      { id: 'approve:r1', label: '✅ 同意' },
+      { id: 'reject:r1', label: '🚫 拒绝' },
+    ]);
+    expect(pb.match('chat-1', '拒绝批准')).toBeUndefined(); // 复合词不命中关键词
+    expect(pb.match('chat-1', '2')).toEqual({ id: 'reject:r1', label: '🚫 拒绝' }); // 数字仍可用
+  });
 });

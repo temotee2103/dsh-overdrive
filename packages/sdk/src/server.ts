@@ -11,7 +11,7 @@ export interface ProtocolHandlers {
   upsertSession(req: { platform: string; channel: string; user: string }): Promise<UpsertSessionResponse>;
   sendMessage(sessionId: string, req: SendMessageRequest): Promise<SendMessageResponse>;
   resolveApproval(reqId: string, decision: 'approve' | 'reject'): Promise<ResolveApprovalResponse>;
-  createTask(req: { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string; once?: boolean }): Promise<TaskResponse>;
+  createTask(req: { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string; once?: boolean; timeZone?: string }): Promise<TaskResponse>;
   listTasks(): Promise<ListTasksResponse>;
   removeTask(taskId: string): Promise<RemoveTaskResponse>;
   resetSession(sessionId: string): Promise<ResetSessionResponse>;
@@ -119,7 +119,7 @@ export class ProtocolServer {
         return;
       }
       if (req.method === 'POST' && parts[0] === 'v1' && parts[1] === 'tasks' && parts.length === 2) {
-        const body = (await readJson(req)) as { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string; once?: boolean };
+        const body = (await readJson(req)) as { sessionId: string; kind: 'subagent' | 'cron'; prompt: string; schedule?: string; once?: boolean; timeZone?: string };
         send(200, await this.handlers.createTask(body));
         return;
       }

@@ -10,8 +10,10 @@ import { parseCommand, HELP_TEXT, type ParsedCommand } from './commands.js';
 import { TrajectoryAggregator, formatTrajectorySummary } from './trajectory.js';
 import { createStatusServer } from './status.js';
 import { createTranscriber, type AsrTranscriber } from './asr.js';
-import { MemoryStore, memoryScope, formatMemories, extractAutoMemories } from './memory.js';
+import { MemoryStore, TopicStore, memoryScope, formatMemories, extractAutoMemories } from './memory.js';
 import { FeedStore, FeedPoller } from './feed.js';
+import { shouldRespond } from './mention.js';
+import { chunkLongText } from './text.js';
 
 /**
  * message.delta → 打字指示去重：同一 turn 内首个 delta 触发一次 typing，
@@ -80,6 +82,12 @@ export interface WireOptions {
   persona?: string;
   /** RSS 订阅存储（/feed 命令）。 */
   feed?: FeedStore;
+  /** 群聊提及策略：true 时群聊中仅在被提及/回复时响应（私聊始终响应）。 */
+  requireMention?: boolean;
+  /** 机器人身份（telegram @用户名 / discord·slack 用户ID / whatsapp 号码）。 */
+  botIdentity?: string;
+  /** 会话主题存储（/context）。 */
+  topics?: TopicStore;
 }
 
 /** 纯函数：一次性提醒的时间 → cron 5 字段表达式（分钟精度）。 */
@@ -113,6 +121,7 @@ async function handleCommand(
   aggregator: TrajectoryAggregator,
   memory: MemoryStore | undefined,
   feed: FeedStore | undefined,
+  topics: TopicStore | undefined,
 ): Promise<void> {
   switch (command.kind) {
     case 'trace': {
@@ -131,8 +140,24 @@ async function handleCommand(
       return;
     }
     case 'cron': {
-      await client.createTask({ sessionId, kind: 'cron', prompt: command.prompt, schedule: command.schedule });
-      await adapter.send(chatId, { text: '⏰ 定时任务已注册' });
+      await client.createTask({ sessionId, kind: 'cron', prompt: command.prompt, schedule: command.schedule, timeZone: command.timeZone });
+      await adapter.send(chatId, { text: `⏰ 定时任务已注册${command.timeZone ? `（时区 ${command.timeZone}）` : ''}` });
+      return;
+    }
+    case 'context': {
+      if (!topics) { await adapter.send(chatId, { text: '会话主题未启用。' }); return; }
+      if (command.action === 'set' && command.topic) {
+        topics.set(sessionId, command.topic);
+        await adapter.send(chatId, { text: `📌 会话主题已绑定：${command.topic}` });
+        return;
+      }
+      if (command.action === 'clear') {
+        const ok = topics.clear(sessionId);
+        await adapter.send(chatId, { text: ok ? '📌 会话主题已清除' : '当前没有会话主题。' });
+        return;
+      }
+      const current = topics.get(sessionId);
+      await adapter.send(chatId, { text: current ? `📌 当前会话主题：${current}` : '当前没有会话主题。用 /context <主题> 绑定。' });
       return;
     }
     case 'crons': {
@@ -289,11 +314,25 @@ export async function wireAdapter(
       }
       chatIds.set(key, msg.chatId);
 
+      // 群聊提及策略（对齐竞品）：群聊中仅被提及/回复时响应；私聊始终响应
+      if (opts.requireMention && !shouldRespond(adapter.id, msg, { requireMention: true, botIdentity: opts.botIdentity ?? '' })) {
+        console.log(`[gateway][${adapter.id}] 群聊未提及，跳过: chat=${msg.chatId}`);
+        return;
+      }
+
       const command = parseCommand(msg.text);
       if (command) {
         console.log(`[gateway][${adapter.id}] 命令: ${JSON.stringify(command)}`);
-        await handleCommand(adapter, client, command, key, msg.chatId, aggregator, opts.memory, opts.feed);
+        await handleCommand(adapter, client, command, key, msg.chatId, aggregator, opts.memory, opts.feed, opts.topics);
         return;
+      }
+
+      // 会话主题注入（/context）
+      if (opts.topics) {
+        const topic = opts.topics.get(key);
+        if (topic) {
+          msg.text = `【会话主题】${topic}\n${msg.text}`;
+        }
       }
 
       // OpenClaw 式记忆注入：入站消息前检索相关记忆，拼到文本后让 agent「记得你」
@@ -399,11 +438,18 @@ export async function wireAdapter(
       const planned = planOutbound(out);
       if (!planned) return;
       const chatId = chatIdFor(out.sessionId);
-      console.log(`[gateway][${adapter.id}] 事件 ${out.type} -> 发送到 ${chatId}`);
-      void adapter.send(chatId, planned.payload).then(
-        () => console.log(`[gateway][${adapter.id}] 已发送 ${out.type} 到 ${chatId}`),
-        (error) => console.error(`[gateway][${adapter.id}] 发送失败 ${out.type}: ${error instanceof Error ? error.message : String(error)}`),
-      );
+      // 长回复智能分片（对齐竞品）：>1500 字按换行/句号断行，带（i/n）序号
+      const chunks = chunkLongText(planned.payload.text);
+      chunks.forEach((chunk, i) => {
+        const payload = i === 0
+          ? planned.payload
+          : { text: chunk };
+        console.log(`[gateway][${adapter.id}] 事件 ${out.type} -> 发送到 ${chatId}${chunks.length > 1 ? `（${i + 1}/${chunks.length}）` : ''}`);
+        void adapter.send(chatId, payload).then(
+          () => console.log(`[gateway][${adapter.id}] 已发送 ${out.type} 到 ${chatId}`),
+          (error) => console.error(`[gateway][${adapter.id}] 发送失败 ${out.type}: ${error instanceof Error ? error.message : String(error)}`),
+        );
+      });
     });
   });
 }
@@ -425,6 +471,9 @@ async function main(): Promise<void> {
   const memory = new MemoryStore(process.env.MEMORY_FILE ?? 'data/memory.json');
   console.log(`[gateway] 记忆系统已启用（文件: ${process.env.MEMORY_FILE ?? 'data/memory.json'}）`);
   const feedStore = new FeedStore(process.env.FEED_FILE ?? 'data/feeds.json');
+  const topics = new TopicStore(process.env.TOPIC_FILE ?? 'data/topics.json');
+  const requireMention = process.env.GROUP_MENTION === '1';
+  if (requireMention) console.log('[gateway] 群聊提及模式已启用（群聊仅在被提及/回复时响应）');
 
   const client = new GatewayClient(dshBaseUrl, dshToken);
   await client.health(); // 确认 DSH 侧（或 mock）活着
@@ -438,7 +487,12 @@ async function main(): Promise<void> {
     await adapter.connect();
     // 人设：PERSONA_<ADAPTER_ID>（如 PERSONA_TELEGRAM）优先，回退 PERSONA
     const persona = process.env[`PERSONA_${adapter.id.toUpperCase()}`] ?? process.env.PERSONA;
-    await wireAdapter(adapter, client, { allowlist, allowAll, asr, memory, persona, feed: feedStore });
+    // 机器人身份：BOT_IDENTITY_<ADAPTER_ID> 优先，回退 BOT_IDENTITY
+    const botIdentity = process.env[`BOT_IDENTITY_${adapter.id.toUpperCase()}`] ?? process.env.BOT_IDENTITY ?? '';
+    await wireAdapter(adapter, client, {
+      allowlist, allowAll, asr, memory, persona, feed: feedStore, topics,
+      requireMention, botIdentity,
+    });
     console.log(`[gateway] ${adapter.id} 适配器已就绪${persona ? `（人设: ${persona.slice(0, 20)}…）` : ''}`);
   }
 
