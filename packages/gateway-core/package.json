@@ -1,12 +1,25 @@
-﻿{
+{
   "name": "@dsh-overdrive/gateway-core",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "cordis.patch.yml"
+  ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepack": "npm run build"
   },
   "dependencies": {
-    "@dsh-overdrive/sdk": "0.1.2",
+    "@dsh-overdrive/sdk": "^0.1.2",
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-agent": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
@@ -14,7 +27,7 @@
   },
   "devDependencies": {},
   "license": "MIT",
-  "description": "dsh-overdrive: DeepSeek Harness plugin â€” multi-platform chat bridge core (trajectory / approval / multi-agent)",
+  "description": "dsh-overdrive: DeepSeek Harness plugin - multi-platform chat bridge core (trajectory / approval / multi-agent)",
   "repository": {
     "type": "git",
     "url": "https://github.com/temotee2103/dsh-overdrive.git"
