@@ -109,6 +109,14 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}): GatewayC
             return;
           }
           const cmd = telegramCommand(m.text);
+          if (m.text.trim() === '/trace') {
+            const steps = bridge.trajectoryOf({ channel: m.channel, user: m.user });
+            const body = steps.length > 0
+              ? `🧭 最近轨迹：\n${steps.map((s) => `  · ${s}`).join('\n')}`
+              : '（该会话暂无工具轨迹）';
+            void driver.send({ channel: m.channel, user: m.user }, { kind: 'complete', text: body });
+            return;
+          }
           if (cmd === '/help') {
             void driver.send({ channel: m.channel, user: m.user }, { kind: 'complete', text: telegramHelpText });
             return;

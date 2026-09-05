@@ -52,6 +52,8 @@ export interface NativeBridge {
     text: string,
     media?: MediaRef,
   ): Promise<boolean>;
+  /** 该会话最近记录的工具调用轨迹（/trace 回放用；无则空数组）。 */
+  trajectoryOf(to: { channel: string; user: string }): string[];
   /** 访问底层 runtime（测试/高级扩展用）。 */
   readonly runtime: DshRuntime;
 }
@@ -134,12 +136,21 @@ export function createNativeBridge(ctx: Context, options: NativeBridgeOptions): 
   const prefix = options.sessionPrefix ?? 'dsh';
   const approvalTimeoutMs = options.approvalTimeoutMs ?? 120_000;
   const pendingApprovals = new Map<string, PendingApproval>();
+  // 每会话最近轨迹（/trace）：只记工具标签，上限 60。
+  const recentSteps = new Map<string, string[]>();
+  const MAX_STEPS = 60;
 
   runtime.onSessionEvent((sessionId, event) => {
     const target = outboundTarget(sessionId, prefix);
     if (!target) return; // 非本网关注入的会话（如 Web 创建的）不在此桥接
     for (const outbound of deriveNativeOutbound(event)) {
       try {
+        if (outbound.kind === 'trajectory') {
+          const list = recentSteps.get(sessionId) ?? [];
+          list.push(outbound.step.label);
+          if (list.length > MAX_STEPS) list.splice(0, list.length - MAX_STEPS);
+          recentSteps.set(sessionId, list);
+        }
         void driver.send(target, outbound);
       } catch (error) {
         console.warn(
@@ -188,6 +199,10 @@ export function createNativeBridge(ctx: Context, options: NativeBridgeOptions): 
 
   return {
     runtime,
+    trajectoryOf(to) {
+      const id = toDshSessionId(driver.platform, to.channel, to.user, prefix);
+      return recentSteps.get(id) ?? [];
+    },
     async handleUserMessage(to, text, media) {
       const dshSessionId = toDshSessionId(driver.platform, to.channel, to.user, prefix);
       const pending = pendingApprovals.get(dshSessionId);

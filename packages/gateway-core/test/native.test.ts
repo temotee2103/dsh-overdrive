@@ -146,6 +146,22 @@ describe('进程内原生桥接（P0）', () => {
   it('deriveNativeOutbound 未知事件返回空', () => {
     expect(deriveNativeOutbound(sessionEvent('some/unknown'))).toEqual([]);
   });
+
+  it('/trace：记录工具轨迹并可回放；无轨迹返回空', async () => {
+    const { ctx, disposers: ds, emit } = fakeCtx();
+    disposers = ds;
+    const driver = fakeDriver();
+    const bridge = createNativeBridge(ctx, { driver });
+    const sid = 'dsh:cli:local:u1';
+
+    expect(bridge.trajectoryOf({ channel: 'local', user: 'u1' })).toEqual([]);
+
+    emit('session/event', { header: { id: sid } }, sessionEvent('tool/call', { name: 'read_file' }));
+    emit('session/event', { header: { id: sid } }, sessionEvent('tool/call', { name: 'bash' }));
+    expect(bridge.trajectoryOf({ channel: 'local', user: 'u1' })).toEqual(['read_file', 'bash']);
+    // 其它会话不受影响
+    expect(bridge.trajectoryOf({ channel: 'other', user: 'u9' })).toEqual([]);
+  });
 });
 
 describe('原生审批（P2-b）', () => {
