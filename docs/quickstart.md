@@ -17,25 +17,31 @@ Then message your bot → run `/help`. / 然后给 bot 发消息，输入 `/help
 
 > The image is built locally on first run (takes a few minutes). / 首次运行会在本地构建镜像，需几分钟。
 
-## Option B — install into an existing DSH / 方案 B：装进你已有的 DSH（一条命令）
+## Option B — install into an existing DSH / 方案 B：装进你已有的 DSH（推荐，进程内原生）
 
-Already running DSH? Just add the plugin and the gateway / 已有 DSH？装插件 + 起 gateway 即可：
+No external gateway process needed: the plugin runs the chat bridge **inside DSH**.
+无需外部 gateway 进程：插件直接在 DSH 进程内跑聊天桥接（v0.2.0 起）。
 
 ```bash
-# 0. (可选) 引导向导：交互式填 API key + 平台凭据，每个凭据实时联网验证
-npx dsh-overdrive-setup
-
 # 1. 安装插件（DSH 官方插件安装方式）
 dsh plugin --profile web add @dsh-overdrive/gateway-core
 
-# 2. 起 gateway（指向你的 DSH）
-npx dsh-overdrive-gateway
-# 或全局安装后直接运行
-npm i -g @dsh-overdrive/gateway
-GATEWAY_ADAPTERS=telegram TELEGRAM_BOT_TOKEN=<token> dsh-overdrive-gateway
+# 2. 配置平台 token（任一，缺省回落同名环境变量）
+# 2a. Telegram：@BotFather 创建 bot
+setx DSH_TELEGRAM_TOKEN <bot token>          # Windows
+export DSH_TELEGRAM_TOKEN=<bot token>        # macOS / Linux
+# 也可在 profile 的 cordis.patch.yml 覆盖 config.telegramToken
+
+# 3. 重启 dsh web，然后给你的 bot 发消息即可（无需任何外部进程/端口）
+dsh web
 ```
 
-The plugin auto-uses the model configured in your DSH Web UI. / 插件自动使用你在 DSH Web UI 里配置的模型。
+The plugin auto-uses the model configured in your DSH Web UI; `/help`、`/new`、
+`/remind 30s <提示>`（原生）可用，审批请求会以文字「批准/拒绝」在聊天中回复。
+未配置 token 时插件以禁用态加载（仅告警），不会影响 DSH 其它功能。
+
+> **旧外部 gateway 模式（legacy，仍可用但不推荐）**：`DSH_OVERDRIVE_TOKEN`
+> + `npx dsh-overdrive-gateway` 方式保留；后续版本将逐步退役外部 gateway。
 
 ## Option C — from source / 方案 C：源码运行（开发）
 
@@ -48,13 +54,15 @@ GATEWAY_ADAPTERS=telegram TELEGRAM_BOT_TOKEN=<token> node packages/gateway/dist/
 
 | Platform | What you need / 你需要什么 |
 |---|---|
-| **Telegram** | Bot token from @BotFather (~3 min) / @BotFather 创建 bot 拿 token |
-| **WhatsApp** | Nothing — scan the QR shown on first start / 无需配置，首次启动扫码 |
-| **Discord** | Bot token / Developer Portal 创建 bot |
-| **Slack** | Socket Mode tokens / App 开启 Socket Mode |
-| **飞书 Feishu** | App ID + Secret / 开放平台创建应用 |
-| **钉钉 DingTalk** | Client ID + Secret / 创建企业内部应用 |
-| **企业微信 WeCom** | Corp ID + Secret + Agent ID + token + AES key |
+| **Telegram** | Bot token from @BotFather —— **原生进程内支持**（推荐，v0.2.0） |
+| **WhatsApp** | Nothing — scan the QR shown on first start / 无需配置，首次启动扫码（legacy gateway） |
+| **Discord** | Bot token / Developer Portal 创建 bot（legacy gateway） |
+| **Slack** | Socket Mode tokens / App 开启 Socket Mode（legacy gateway） |
+| **飞书 Feishu** | App ID + Secret / 开放平台创建应用（legacy gateway） |
+| **钉钉 DingTalk** | Client ID + Secret / 创建企业内部应用（legacy gateway） |
+| **企业微信 WeCom** | Corp ID + Secret + Agent ID + token + AES key（legacy gateway） |
+
+> legacy gateway = 仍需外部 `@dsh-overdrive/gateway` 进程；平台正在逐个迁入进程内原生。
 
 ## Commands / 聊天命令
 
@@ -66,6 +74,9 @@ GATEWAY_ADAPTERS=telegram TELEGRAM_BOT_TOKEN=<token> node packages/gateway/dist/
 | `/cron <min hour dom mon dow> <prompt>` | Schedule a recurring job / 定时任务 |
 | `/agents` | Subagent status / 子任务状态 |
 | `/new` | Reset the conversation / 重置会话 |
+| `/remind <N><s\|m\|h> <提示>` | One-shot reminder（原生） / 一次性提醒 |
+
+> `/trace`、`/task`、`/cron`、`/agents` 目前由 legacy gateway 提供；原生模式逐步补齐。
 
 ## Troubleshooting / 排障
 
