@@ -6,9 +6,9 @@ import type { NativeDriver, NativeOutbound } from '../native.js';
  * Telegram 原生 driver（进程内，P1 MVP）。
  *
  * 与外部 gateway 的 grammy adapter 不同：这里用极简 Bot API 轮询 client
- * （Node 全局 fetch），不引入额外依赖，方便单测注入 seam。MVP 能力：
- * 文本收发 + allowlist + HTML + 长文分片 + typing 提示；媒体/审批按钮在
- * P2 扩展（届时可复用外部 adapter 的 normalize 纯函数）。
+ * （Node 全局 fetch），不引入额外依赖，方便单测注入 seam。能力：
+ * 文本/图片收发 + allowlist + HTML + 长文分片 + typing + 审批提示；其余
+ * 媒体与回调按钮在 P2 后续扩展。
  */
 
 // —— Telegram Bot API 结构外形 ——
@@ -21,7 +21,7 @@ export interface RawTelegramUpdate {
     caption?: string;
     from?: { id?: number };
     chat?: { id?: number };
-    photo?: unknown[];
+    photo?: Array<{ file_id?: string }>;
     voice?: unknown;
     audio?: unknown;
     video?: unknown;
@@ -36,6 +36,8 @@ export interface TelegramApiLike {
   getUpdates(params: { offset: number; timeout: number }): Promise<{ result: RawTelegramUpdate[] }>;
   sendMessage(chatId: number | string, text: string, extra?: Record<string, unknown>): Promise<unknown>;
   sendChatAction(chatId: number | string, action: 'typing'): Promise<unknown>;
+  /** 换 file_id → file_path（图片等媒体下载需要）。 */
+  getFile(fileId: string): Promise<{ result?: { file_path?: string } }>;
 }
 
 /** 一条已归一化的入站消息。 */
@@ -78,6 +80,7 @@ function realApi(token: string): TelegramApiLike {
     getUpdates: (params) => call('getUpdates', { ...params }),
     sendMessage: (chatId, text, extra) => call('sendMessage', { chat_id: chatId, text, ...extra }),
     sendChatAction: (chatId, action) => call('sendChatAction', { chat_id: chatId, action }),
+    getFile: (fileId) => call('getFile', { file_id: fileId }) as Promise<{ result?: { file_path?: string } }>,
   };
 }
 
@@ -152,13 +155,27 @@ export class TelegramNativeDriver implements NativeDriver {
     }
   }
 
-  /** 归一化 + 鉴权；返回 null 表示忽略（非文本/超员）。 */
-  private handleUpdate(update: RawTelegramUpdate): Promise<void> | void {
+  /** 归一化 + 图片 file_id→可下载 URL + 鉴权；返回 null 表示忽略。 */
+  private async handleUpdate(update: RawTelegramUpdate): Promise<void> {
     if (update.callback_query || !update.message) return;
     const msg = update.message;
     if (msg.chat?.id === undefined || msg.from?.id === undefined) return;
     const text = msg.text ?? msg.caption ?? '';
-    const media: MediaRef | undefined = undefined;
+
+    let media: MediaRef | undefined;
+    const photos = msg.photo ?? [];
+    if (photos.length > 0 && photos[photos.length - 1]?.file_id) {
+      // 图片：取最大尺寸 file_id → getFile 换 file_path → 匿名可下载 URL。
+      try {
+        const file = await this.api.getFile(photos[photos.length - 1]!.file_id!);
+        if (file.result?.file_path) {
+          media = { kind: 'image', url: `https://api.telegram.org/file/bot${this.opts.token}/${file.result.file_path}` };
+          if (text) media.caption = text;
+        }
+      } catch (error) {
+        console.warn(`[gateway-core] telegram 图片 file_path 获取失败: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     if (!text && !media) return;
 
     const chatId = String(msg.chat.id);

@@ -8,7 +8,7 @@ import {
 } from '../src/drivers/telegram.js';
 
 // —— fake Bot API seam ——
-function fakeApi(queue: RawTelegramUpdate[][] = []) {
+function fakeApi(queue: RawTelegramUpdate[][] = [], opts: { filePath?: string } = {}) {
   const sent: Array<{ chatId: number | string; text: string; extra?: Record<string, unknown> }> = [];
   const actions: Array<{ chatId: number | string; action: string }> = [];
   const polls: number[] = [];
@@ -27,6 +27,9 @@ function fakeApi(queue: RawTelegramUpdate[][] = []) {
     async sendChatAction(chatId, action) {
       actions.push({ chatId, action });
       return { ok: true };
+    },
+    async getFile() {
+      return opts.filePath === undefined ? { result: {} } : { result: { file_path: opts.filePath } };
     },
   };
   return { api, sent, actions, polls };
@@ -142,5 +145,35 @@ describe('TelegramNativeDriver（进程内，P1）', () => {
     expect(telegramCommand('/help')).toBe('/help');
     expect(telegramCommand('/start')).toBe('/help');
     expect(telegramCommand('hello')).toBeNull();
+  });
+
+  it('图片消息：photo → getFile → 可下载 URL + caption', async () => {
+    const { api } = fakeApi(
+      [[{ update_id: 1, message: { caption: '看图', photo: [{ file_id: 'small' }, { file_id: 'big' }], from: { id: 7 }, chat: { id: 111 } } }]],
+      { filePath: 'photos/big.jpg' },
+    );
+    const driver = new TelegramNativeDriver({ token: 't', allowAllUsers: true, api, sleep: () => tick() });
+    const got: Array<{ channel: string; user: string; text: string; media?: { kind?: string; url?: string; caption?: string } }> = [];
+    await driver.start((m) => void got.push(m as never));
+    await tick();
+    driver.stop();
+    expect(got).toHaveLength(1);
+    expect(got[0].media?.kind).toBe('image');
+    expect(got[0].media?.url).toBe('https://api.telegram.org/file/bott/photos/big.jpg'); // 取最大尺寸
+    expect(got[0].media?.caption).toBe('看图');
+  });
+
+  it('图片 file_path 获取失败时降级为纯文本（不丢 caption）', async () => {
+    const { api } = fakeApi(
+      [[{ update_id: 1, message: { caption: '注', photo: [{ file_id: 'a' }], from: { id: 7 }, chat: { id: 1 } } }]],
+    );
+    const driver = new TelegramNativeDriver({ token: 't', allowAllUsers: true, api, sleep: () => tick() });
+    const got: Array<{ text: string; media?: unknown }> = [];
+    await driver.start((m) => void got.push(m as never));
+    await tick();
+    driver.stop();
+    expect(got).toHaveLength(1);
+    expect(got[0].text).toBe('注');
+    expect(got[0].media).toBeUndefined();
   });
 });
