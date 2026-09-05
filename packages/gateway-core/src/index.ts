@@ -1,5 +1,6 @@
 import { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
+import { settingsNamespace } from '@deepseek-ai/dsh-settings';
 import { ProtocolServer, type ProtocolHandlers } from '@dsh-overdrive/sdk';
 import { DshBridge } from './bridge.js';
 import { createDshRuntime } from './dsh-runtime.js';
@@ -47,24 +48,76 @@ export const Config: Schema<GatewayCoreConfig> = Schema.object({
   telegramAllowAllUsers: Schema.boolean().default(false),
 });
 
+/** DSH 设置页命名空间（小写 kebab；设置 → Plugins 区按此显示）。 */
+export const OVERDRIVE_SETTINGS_NAMESPACE = 'overdrive';
+
+/** 设置页表单 schema：非技术用户在此配置（保存后需重启生效）。 */
+export const OverdriveUiSettingsSchema: Schema<{
+  telegramToken: string;
+  telegramAllowedUserIds: number[];
+  telegramAllowAllUsers: boolean;
+  sessionPrefix: string;
+  approvalTimeoutMs: number;
+}> = Schema.object({
+  telegramToken: Schema.string().default(''),
+  telegramAllowedUserIds: Schema.array(Schema.number()).default([]),
+  telegramAllowAllUsers: Schema.boolean().default(false),
+  sessionPrefix: Schema.string().default('dsh'),
+  approvalTimeoutMs: Schema.number().default(120000),
+});
+
+/** 设置页用户值的外形（读写都在 DSH 设置服务）。 */
+export interface OverdriveUiSettings {
+  telegramToken?: string;
+  telegramAllowedUserIds?: number[];
+  telegramAllowAllUsers?: boolean;
+  sessionPrefix?: string;
+  approvalTimeoutMs?: number;
+}
+
+/** 纯函数：telegram 启动参数解析链 = 设置页(UI) > patch config > 环境变量。 */
+export function resolveTelegramOptions(opts: {
+  ui?: Partial<OverdriveUiSettings>;
+  config?: GatewayCoreConfig;
+  env?: NodeJS.ProcessEnv;
+}): { token: string; allowedUserIds?: number[]; allowAllUsers?: boolean } | undefined {
+  const { ui, config, env } = opts;
+  const token = ui?.telegramToken?.trim() || config?.telegramToken?.trim() || env?.DSH_TELEGRAM_TOKEN?.trim() || undefined;
+  if (!token) return undefined;
+  return {
+    token,
+    allowedUserIds: ui?.telegramAllowedUserIds?.length
+      ? ui.telegramAllowedUserIds
+      : config?.telegramAllowedUserIds,
+    allowAllUsers: ui?.telegramAllowAllUsers ?? config?.telegramAllowAllUsers,
+  };
+}
+
 export interface GatewayCoreHandle {
   server?: ProtocolServer;
   ready?: Promise<{ port: number }>;
   bridge?: DshBridge;
   /** 已启动的进程内原生平台（如 ['telegram']）。 */
   native: string[];
+  /** 是否成功注册 DSH 设置页命名空间。 */
+  settingsRegistered?: boolean;
   disabled?: true;
+}
+
+interface TelegramOverrides {
+  token: string;
+  allowedUserIds?: number[];
+  allowAllUsers?: boolean;
 }
 
 /**
  * DSH 插件入口。
  *
- * 两种工作形态（可并存，过渡期）：
- * 1) 进程内原生（推荐，P1 起）：平台 token 就绪即在该进程内直接驱动
- *    ctx.agents 会话，无需外部 gateway/自研协议。
- * 2) 旧模式：配置 DSH_OVERDRIVE_TOKEN 后开 ProtocolServer 供外部 gateway 连接。
+ * 1) 进程内原生（推荐）：telegram token 就绪即在本进程内驱动 ctx.agents 会话。
+ *    token 来源链：DSH 设置页(overdrive) > patch config > DSH_TELEGRAM_TOKEN。
+ * 2) 旧模式（legacy）：DSH_OVERDRIVE_TOKEN + 外部 gateway 协议服务端。
  *
- * 任何配置缺失都**不抛异常**：插件以禁用态加载并告警，绝不影响 profile 启动。
+ * 任意缺失都不抛异常：禁用态加载 + 告警，绝不影响 profile 启动。
  */
 export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}): GatewayCoreHandle {
   const cwd = rawConfig.cwd;
@@ -73,81 +126,41 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}): GatewayC
   const native: string[] = [];
   const reminderTimers = new Set<ReturnType<typeof setTimeout>>();
 
-  // —— 进程内原生：Telegram（有 token 即启动；无效/失败仅告警）——
-  const telegramToken = rawConfig.telegramToken ?? process.env.DSH_TELEGRAM_TOKEN;
-  if (telegramToken) {
-    try {
-      const driver = new TelegramNativeDriver({
-        token: telegramToken,
-        allowedUserIds: rawConfig.telegramAllowedUserIds,
-        allowAllUsers: rawConfig.telegramAllowAllUsers,
+  // —— 注册 DSH 设置页命名空间（有 settings 服务才注册；失败仅告警）——
+  let settingsRegistered = false;
+  let uiSettings: Partial<OverdriveUiSettings> | undefined;
+  try {
+    const get = (ctx as unknown as { get?: (key: string) => unknown }).get?.bind(ctx);
+    const settings = get?.('settings') as
+      | { register?: (ns: unknown, schema: unknown, opts?: unknown) => { get?: () => Partial<OverdriveUiSettings> } }
+      | undefined;
+    if (settings?.register) {
+      const scope = settings.register(settingsNamespace(OVERDRIVE_SETTINGS_NAMESPACE), OverdriveUiSettingsSchema, {
+        applies: 'restart',
       });
-      const bridge = createNativeBridge(ctx, {
-        driver,
-        cwd,
-        sessionPrefix,
-        model: rawConfig.model,
-        approvalTimeoutMs: rawConfig.approvalTimeoutMs,
-      });
-      void driver
-        .start(async (m) => {
-          // /remind <N><s|m|h> <提示>：一次性定时提醒（本会话 channel）。
-          const remind = parseRemindCommand(m.text);
-          if (remind) {
-            const timer = setTimeout(() => {
-              reminderTimers.delete(timer);
-              void driver.send(
-                { channel: m.channel, user: m.user },
-                { kind: 'complete', text: `⏰ 提醒：${remind.prompt}` },
-              );
-            }, remind.delayMs);
-            reminderTimers.add(timer);
-            void driver.send(
-              { channel: m.channel, user: m.user },
-              { kind: 'complete', text: `已设置提醒（${describeRemindDelay(remind.delayMs)} 后）：${remind.prompt}` },
-            );
-            return;
-          }
-          const cmd = telegramCommand(m.text);
-          if (m.text.trim() === '/trace') {
-            const steps = bridge.trajectoryOf({ channel: m.channel, user: m.user });
-            const body = steps.length > 0
-              ? `🧭 最近轨迹：\n${steps.map((s) => `  · ${s}`).join('\n')}`
-              : '（该会话暂无工具轨迹）';
-            void driver.send({ channel: m.channel, user: m.user }, { kind: 'complete', text: body });
-            return;
-          }
-          if (cmd === '/help') {
-            void driver.send({ channel: m.channel, user: m.user }, { kind: 'complete', text: telegramHelpText });
-            return;
-          }
-          if (cmd === '/new' || cmd === '/clear') {
-            await bridge.runtime.destroyAgent?.(toDshSessionId(driver.platform, m.channel, m.user, sessionPrefix));
-            void driver.send(
-              { channel: m.channel, user: m.user },
-              { kind: 'complete', text: cmd === '/new' ? '🆕 已开启新会话' : '🧹 已重置当前会话' },
-            );
-            return;
-          }
-          await bridge.handleUserMessage({ channel: m.channel, user: m.user }, m.text, m.media);
-        })
-        .catch((error) => {
-          console.warn(
-            `[dsh-overdrive-gateway-core] telegram 原生启动失败（token 无效？）：${error instanceof Error ? error.message : String(error)}`,
-          );
-        });
-      stopFns.push(() => driver.stop());
-      stopFns.push(() => {
-        for (const t of reminderTimers) clearTimeout(t);
-        reminderTimers.clear();
-      });
-      native.push('telegram');
-      console.log('[dsh-overdrive-gateway-core] telegram 原生桥接已启动（进程内，无外部 gateway）');
-    } catch (error) {
-      console.warn(
-        `[dsh-overdrive-gateway-core] telegram 原生初始化失败：${error instanceof Error ? error.message : String(error)}`,
-      );
+      uiSettings = scope.get?.();
+      settingsRegistered = true;
+      console.log('[dsh-overdrive-gateway-core] 已注册设置项：DSH 设置 → Plugins → overdrive（保存后重启生效）');
     }
+  } catch (error) {
+    console.warn(
+      `[dsh-overdrive-gateway-core] 设置项注册跳过：${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const telegram = resolveTelegramOptions({ ui: uiSettings, config: rawConfig, env: process.env });
+  if (telegram) {
+    startNativeTelegram(ctx, rawConfig, {
+      telegram,
+      sessionPrefix,
+      cwd,
+      reminderTimers,
+      onStart: (p) => {
+        native.push(p);
+        console.log('[dsh-overdrive-gateway-core] telegram 原生桥接已启动（进程内，无外部 gateway）');
+      },
+      onStop: (stop) => stopFns.push(stop),
+    });
   }
 
   // —— 旧模式：外部 gateway 的协议服务端（仅当显式配置 token）——
@@ -175,10 +188,11 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}): GatewayC
   if (native.length === 0 && !token) {
     console.warn(
       '[dsh-overdrive-gateway-core] 未配置任何桥接（插件保持加载，不影响 dsh 其它功能）。\n' +
-        '  进程内原生模式（推荐）：设置环境变量 DSH_TELEGRAM_TOKEN=<bot token> 后重启，即可直接在 DSH 里聊 Telegram。\n' +
-        '  旧外部 gateway 模式：设置 DSH_OVERDRIVE_TOKEN=<token>（与 gateway 相同）。',
+        '  配置方式：在 DSH 设置 → Plugins → overdrive 填入 Telegram Bot Token（最省心）；\n' +
+        '  或设置环境变量 DSH_TELEGRAM_TOKEN=<bot token> 后重启。\n' +
+        '  旧外部 gateway 模式：DSH_OVERDRIVE_TOKEN=<token>。',
     );
-    return { native, disabled: true as const };
+    return { native, settingsRegistered, disabled: true as const };
   }
 
   if (stopFns.length > 0) {
@@ -187,5 +201,92 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}): GatewayC
     });
   }
 
-  return { server, ready, bridge, native };
+  return { server, ready, bridge, native, settingsRegistered };
+}
+
+/** 启动进程内原生 telegram 桥接（含 /remind /trace /help /new /clear 与审批回投）。 */
+function startNativeTelegram(
+  ctx: Context,
+  rawConfig: GatewayCoreConfig,
+  opts: {
+    telegram: TelegramOverrides;
+    sessionPrefix: string;
+    cwd?: string;
+    reminderTimers: Set<ReturnType<typeof setTimeout>>;
+    onStart: (platform: string) => void;
+    onStop: (stop: () => void) => void;
+  },
+): void {
+  try {
+    const driver = new TelegramNativeDriver({
+      token: opts.telegram.token,
+      allowedUserIds: opts.telegram.allowedUserIds,
+      allowAllUsers: opts.telegram.allowAllUsers,
+    });
+    const bridge = createNativeBridge(ctx, {
+      driver,
+      cwd: opts.cwd,
+      sessionPrefix: opts.sessionPrefix,
+      model: rawConfig.model,
+      approvalTimeoutMs: rawConfig.approvalTimeoutMs,
+    });
+    void driver
+      .start(async (m) => {
+        const remind = parseRemindCommand(m.text);
+        if (remind) {
+          const timer = setTimeout(() => {
+            opts.reminderTimers.delete(timer);
+            void driver.send(
+              { channel: m.channel, user: m.user },
+              { kind: 'complete', text: `⏰ 提醒：${remind.prompt}` },
+            );
+          }, remind.delayMs);
+          opts.reminderTimers.add(timer);
+          void driver.send(
+            { channel: m.channel, user: m.user },
+            { kind: 'complete', text: `已设置提醒（${describeRemindDelay(remind.delayMs)} 后）：${remind.prompt}` },
+          );
+          return;
+        }
+        if (m.text.trim() === '/trace') {
+          const steps = bridge.trajectoryOf({ channel: m.channel, user: m.user });
+          const body = steps.length > 0
+            ? `🧭 最近轨迹：\n${steps.map((s) => `  · ${s}`).join('\n')}`
+            : '（该会话暂无工具轨迹）';
+          void driver.send({ channel: m.channel, user: m.user }, { kind: 'complete', text: body });
+          return;
+        }
+        const cmd = telegramCommand(m.text);
+        if (cmd === '/help') {
+          void driver.send({ channel: m.channel, user: m.user }, { kind: 'complete', text: telegramHelpText });
+          return;
+        }
+        if (cmd === '/new' || cmd === '/clear') {
+          await bridge.runtime.destroyAgent?.(
+            toDshSessionId(driver.platform, m.channel, m.user, opts.sessionPrefix),
+          );
+          void driver.send(
+            { channel: m.channel, user: m.user },
+            { kind: 'complete', text: cmd === '/new' ? '🆕 已开启新会话' : '🧹 已重置当前会话' },
+          );
+          return;
+        }
+        await bridge.handleUserMessage({ channel: m.channel, user: m.user }, m.text, m.media);
+      })
+      .catch((error) => {
+        console.warn(
+          `[dsh-overdrive-gateway-core] telegram 原生启动失败（token 无效？）：${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    opts.onStop(() => {
+      driver.stop();
+      for (const t of opts.reminderTimers) clearTimeout(t);
+      opts.reminderTimers.clear();
+    });
+    opts.onStart('telegram');
+  } catch (error) {
+    console.warn(
+      `[dsh-overdrive-gateway-core] telegram 原生初始化失败：${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }

@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { apply, Config, name } from '../src/index.js';
+import {
+  apply,
+  Config,
+  name,
+  OverdriveUiSettingsSchema,
+  resolveTelegramOptions,
+} from '../src/index.js';
 
 /** 富 Fake ctx：effect + agents + on + subagents，满足插件启动路径。 */
 function fakeCtx() {
@@ -37,6 +43,30 @@ describe('gateway-core 插件', () => {
   it('Config schema 已导出（供 DSH 设置面使用）', () => {
     expect(Config).toBeDefined();
     expect(typeof Config).toBe('function');
+  });
+
+  it('设置页 UI schema 含 telegram 字段', () => {
+    expect(OverdriveUiSettingsSchema).toBeDefined();
+    expect(typeof OverdriveUiSettingsSchema).toBe('function');
+  });
+
+  it('telegram 参数解析链：设置页(UI) > patch config > 环境变量', () => {
+    const env = (v?: string) => ({ DSH_TELEGRAM_TOKEN: v });
+    // UI 优先
+    expect(resolveTelegramOptions({ ui: { telegramToken: 'ui-token' }, config: { telegramToken: 'cfg' }, env: env('env') })).toEqual({ token: 'ui-token' });
+    // config 次之
+    expect(resolveTelegramOptions({ config: { telegramToken: 'cfg' }, env: env('env') })).toEqual({ token: 'cfg' });
+    // 环境变量兜底
+    expect(resolveTelegramOptions({ env: env('env') })).toEqual({ token: 'env' });
+    // 全无 → undefined
+    expect(resolveTelegramOptions({ env: env('') })).toBeUndefined();
+    // UI 的 allowAll/白名单合并
+    expect(
+      resolveTelegramOptions({
+        ui: { telegramToken: 'ui', telegramAllowAllUsers: true, telegramAllowedUserIds: [1] },
+        config: { telegramAllowAllUsers: false },
+      }),
+    ).toEqual({ token: 'ui', allowAllUsers: true, allowedUserIds: [1] });
   });
 
   it('未配置 token 时不抛异常，以禁用态加载（不拖垮 profile）', () => {
