@@ -21,12 +21,26 @@ export interface GatewayCoreConfig {
  * DSH 插件入口。组装 ProtocolServer + DshRuntime + DshBridge：
  * 协议层（HTTP/WS）由 SDK 提供，桥接逻辑见 bridge.ts。
  * 返回 `{ server, ready }` 供测试与上层复用。
+ *
+ * 配置缺失时**不抛异常**：bundle patch 插件在配置完成前也会被 DSH 装载，
+ * 抛异常会把整个 profile（如 `dsh web`）拖垮，用户连配置入口都进不去。
+ * 缺 token 时插件以禁用态加载并打印告警与配置指引。
  */
 export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}) {
-  // 安全边界：不允许内置默认 token（评审意见 #1191-3）。必须显式配置，否则拒绝启动。
+  // 安全边界：不允许内置默认 token（评审意见 #1191-3）。必须显式配置。
   const token = rawConfig.token ?? process.env.DSH_OVERDRIVE_TOKEN;
   if (!token) {
-    throw new Error('gateway-core 需要配置 token（config.token 或环境变量 DSH_OVERDRIVE_TOKEN）；未配置拒绝启动');
+    console.warn(
+      '[dsh-overdrive-gateway-core] 未配置 token，桥接未启动（插件保持加载，不影响 dsh 其它功能）。\n' +
+        '  配置方式（任选其一）后重启：\n' +
+        '  1) 设置环境变量 DSH_OVERDRIVE_TOKEN=<与外部 gateway 相同的 token>\n' +
+        '  2) 在本 profile 的 cordis.patch.yml 增加覆盖：\n' +
+        '     - update:\n' +
+        '         - id: overdrive-gateway-core\n' +
+        '           config:\n' +
+        '             token: <token>',
+    );
+    return { disabled: true as const, server: undefined, ready: undefined, bridge: undefined };
   }
   const port = rawConfig.port ?? 3192;
   const approvalTimeoutMs = rawConfig.approvalTimeoutMs ?? 120_000;

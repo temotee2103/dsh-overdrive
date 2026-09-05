@@ -1,3 +1,13 @@
+# dsh-overdrive gateway-core — DSH 侧桥接插件（bundle patch 层）
+#
+# 未配置 token 时插件以禁用态加载并打印告警，不会阻塞 dsh 启动。
+# 配置方式（任选其一，然后重启 dsh）：
+#   1) 环境变量：DSH_OVERDRIVE_TOKEN=<token>（与外部 gateway 进程共用同一 token）
+#   2) 在本 profile 的 cordis.patch.yml 增加覆盖：
+#        - update:
+#            - id: overdrive-gateway-core
+#              config:
+#                token: <token>
 - insert:
     - id: overdrive-gateway-core
       name: '@dsh-overdrive/gateway-core'

@@ -34,6 +34,40 @@ describe('gateway-core 插件', () => {
     expect(name).toBe('dsh-overdrive-gateway-core');
   });
 
+  it('未配置 token 时不抛异常，以禁用态加载（不拖垮 profile）', () => {
+    const { ctx, disposers: ds } = fakeCtx();
+    disposers = ds;
+    const saved = process.env.DSH_OVERDRIVE_TOKEN;
+    delete process.env.DSH_OVERDRIVE_TOKEN;
+    try {
+      const handle = apply(ctx, {}) as unknown as { disabled: true; server?: unknown };
+      expect(handle.disabled).toBe(true);
+      expect(handle.server).toBeUndefined();
+      expect(handle.ready).toBeUndefined();
+    } finally {
+      if (saved === undefined) delete process.env.DSH_OVERDRIVE_TOKEN;
+      else process.env.DSH_OVERDRIVE_TOKEN = saved;
+    }
+  });
+
+  it('环境变量 DSH_OVERDRIVE_TOKEN 可替代 config.token 启动', async () => {
+    const { ctx, disposers: ds } = fakeCtx();
+    disposers = ds;
+    const saved = process.env.DSH_OVERDRIVE_TOKEN;
+    process.env.DSH_OVERDRIVE_TOKEN = 'env-token';
+    try {
+      const handle = apply(ctx, { port: 0 }) as unknown as { ready: Promise<{ port: number }> };
+      const { port } = await handle.ready;
+      const res = await fetch(`http://127.0.0.1:${port}/v1/health`, {
+        headers: { authorization: 'Bearer env-token' },
+      });
+      expect(res.status).toBe(200);
+    } finally {
+      if (saved === undefined) delete process.env.DSH_OVERDRIVE_TOKEN;
+      else process.env.DSH_OVERDRIVE_TOKEN = saved;
+    }
+  });
+
   it('启动后协议服务端可访问（health）', async () => {
     const { ctx, disposers: ds } = fakeCtx();
     disposers = ds;
