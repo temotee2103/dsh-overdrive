@@ -1,4 +1,5 @@
 import { Context } from '@deepseek-ai/cordis';
+import Schema from '@deepseek-ai/schemastery';
 import { ProtocolServer, type ProtocolHandlers } from '@dsh-overdrive/sdk';
 import { DshBridge } from './bridge.js';
 import { createDshRuntime } from './dsh-runtime.js';
@@ -28,6 +29,22 @@ export interface GatewayCoreConfig {
   telegramAllowedUserIds?: number[];
   telegramAllowAllUsers?: boolean;
 }
+
+/** 配置 schema（对齐 apply 默认值；供 DSH 设置面/校验使用）。 */
+export const Config: Schema<GatewayCoreConfig> = Schema.object({
+  token: Schema.string().default(''),
+  port: Schema.number().default(3192),
+  sessionPrefix: Schema.string().default('dsh'),
+  cwd: Schema.string().default(''),
+  model: Schema.object({
+    provider: Schema.string().default(''),
+    model: Schema.string().default(''),
+  }).default({ provider: '', model: '' }),
+  approvalTimeoutMs: Schema.number().default(120000),
+  telegramToken: Schema.string().default(''),
+  telegramAllowedUserIds: Schema.array(Schema.number()).default([]),
+  telegramAllowAllUsers: Schema.boolean().default(false),
+});
 
 export interface GatewayCoreHandle {
   server?: ProtocolServer;

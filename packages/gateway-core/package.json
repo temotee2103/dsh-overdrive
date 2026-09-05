@@ -25,7 +25,12 @@
     "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-session": "^0.1.0-rc.6"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
   "license": "MIT",
   "description": "dsh-overdrive: DeepSeek Harness plugin - multi-platform chat bridge core (trajectory / approval / multi-agent)",
   "repository": {

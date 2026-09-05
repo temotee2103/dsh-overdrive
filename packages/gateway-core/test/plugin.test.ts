@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { apply, name } from '../src/index.js';
+import { apply, Config, name } from '../src/index.js';
 
 /** 富 Fake ctx：effect + agents + on + subagents，满足插件启动路径。 */
 function fakeCtx() {
@@ -32,6 +32,11 @@ describe('gateway-core 插件', () => {
 
   it('插件名正确', () => {
     expect(name).toBe('dsh-overdrive-gateway-core');
+  });
+
+  it('Config schema 已导出（供 DSH 设置面使用）', () => {
+    expect(Config).toBeDefined();
+    expect(typeof Config).toBe('function');
   });
 
   it('未配置 token 时不抛异常，以禁用态加载（不拖垮 profile）', () => {
