@@ -102,10 +102,11 @@ dsh plugin --profile web add @dsh-overdrive/gateway-core   # 装插件
 npx dsh-overdrive-gateway                                   # 起 gateway
 ```
 
-> **gateway-core 的 token 配置**（DSH 侧与 gateway 进程共用同一 token）：
-> - 设置环境变量 `DSH_OVERDRIVE_TOKEN=<token>` 后重启 `dsh web`；或
+> **gateway-core 的 token 配置**：
+> - **进程内原生模式（推荐，无需外部 gateway）**：设置 `DSH_TELEGRAM_TOKEN=<bot token>`（@BotFather 创建）后重启 `dsh web`，直接在 DSH 里聊 Telegram。
+> - 旧外部 gateway 模式：设置 `DSH_OVERDRIVE_TOKEN=<token>`（DSH 与 gateway 进程共用）；或
 > - 在 profile 的 `cordis.patch.yml` 覆盖：`- update: [{ id: overdrive-gateway-core, config: { token: <token> } }]`
-> - 未配置 token 时插件**以禁用态加载**（打印告警、桥接不启动），**不会**阻塞 `dsh` 启动，可随时补配后重启。
+> - 未配置任何 token 时插件**以禁用态加载**（打印告警、桥接不启动），**不会**阻塞 `dsh` 启动，可随时补配后重启。
 
 给 bot 发第一条消息后，输入 `/help` 查看全部命令。完整方案见 [docs/quickstart.md](docs/quickstart.md)
 

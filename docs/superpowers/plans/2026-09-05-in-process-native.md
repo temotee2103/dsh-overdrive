@@ -1,6 +1,10 @@
 # dsh-overdrive 全面进程内化 —— 迁移计划（2026-09-05）
 
 > 状态：已确认方向（全面进程内化）。本文档是设计与分阶段执行依据。
+> **进度**：✅ P0（native.ts 接缝，5 测试）→ ✅ P1 代码（telegram driver + 接线 + 8 测试，
+> gateway-core 71 / 全套 257 绿；真机 CLI 级验证：scratch profile add/remove 无 loader 崩溃，
+> 不碰用户 web profile）→ ⏳ P1 真机聊天气步：需用户 Telegram bot token + 许可装回 web profile →
+> P2 其余平台 + schema → 0.2.0 发版刷新收录。
 > 对标样本（GitHub 实测）：`@loserfox/telegram`（telegram 原生桥：`name`+`inject=['agents']`
 > + schemastery `Config`，bridge 内 `ctx.agents.create/resume` + `followup` + session 事件回投，
 > 无外部进程/协议）、`dsh-webbridge`（极薄 insert patch，无配置）、`dsh-mmx-bridge`
