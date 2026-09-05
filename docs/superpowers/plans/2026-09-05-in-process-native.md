@@ -1,10 +1,14 @@
 # dsh-overdrive 全面进程内化 —— 迁移计划（2026-09-05）
 
 > 状态：已确认方向（全面进程内化）。本文档是设计与分阶段执行依据。
-> **进度**：✅ P0（native.ts 接缝，5 测试）→ ✅ P1 代码（telegram driver + 接线 + 8 测试，
-> gateway-core 71 / 全套 257 绿；真机 CLI 级验证：scratch profile add/remove 无 loader 崩溃，
-> 不碰用户 web profile）→ ⏳ P1 真机聊天气步：需用户 Telegram bot token + 许可装回 web profile →
-> P2 其余平台 + schema → 0.2.0 发版刷新收录。
+> **进度**：✅ P0 接缝（native.ts）· ✅ P1 Telegram 原生 driver+接线（CLI 级真机验证无崩溃）
+> · ✅ P2-a Config schema（schemastery）· ✅ P2-b 原生审批 · ✅ P2-c 图片入站 ·
+> ✅ P2-d /remind+apiBase · ✅ 发布 **0.2.0-beta.0**（npm tag `beta`，latest 仍 0.1.9）。
+> ⏳ 待真机（需用户 Telegram bot token + 装回 web profile 许可）：P1 对话验证 →
+> 正式 0.2.0 → P3 设置页客户端卡 → P2 其余平台迁入 → P4 gateway 退役 + 收录刷新
+> （losebird PR #25 / dsh-index update-latest-versions 分支同步到最终版）。
+> 文档已就绪：README/quickstart 原生模式说明、本计划；发布文案草稿见
+> docs/releases/gateway-core-0.2.0.md。
 > 对标样本（GitHub 实测）：`@loserfox/telegram`（telegram 原生桥：`name`+`inject=['agents']`
 > + schemastery `Config`，bridge 内 `ctx.agents.create/resume` + `followup` + session 事件回投，
 > 无外部进程/协议）、`dsh-webbridge`（极薄 insert patch，无配置）、`dsh-mmx-bridge`
