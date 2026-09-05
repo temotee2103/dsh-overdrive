@@ -186,6 +186,13 @@ export class TelegramNativeDriver implements NativeDriver {
         return; // MVP：流式增量在 complete 汇总发送
       case 'trajectory':
         return;
+      case 'approval': {
+        const body = `${outbound.summary}\n\n回复「批准」或「1」允许；「拒绝」或「0」拒绝（${Math.round(outbound.timeoutMs / 1000)}s 内）`;
+        for (const chunk of chunkLongText(body, this.maxMessageLength)) {
+          await this.api.sendMessage(to.channel, escapeHtml(chunk), { parse_mode: 'HTML' });
+        }
+        return;
+      }
       case 'complete': {
         if (!outbound.text) return;
         for (const chunk of chunkLongText(outbound.text, this.maxMessageLength)) {

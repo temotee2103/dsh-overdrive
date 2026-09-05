@@ -80,7 +80,13 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}): GatewayC
         allowedUserIds: rawConfig.telegramAllowedUserIds,
         allowAllUsers: rawConfig.telegramAllowAllUsers,
       });
-      const bridge = createNativeBridge(ctx, { driver, cwd, sessionPrefix, model: rawConfig.model });
+      const bridge = createNativeBridge(ctx, {
+        driver,
+        cwd,
+        sessionPrefix,
+        model: rawConfig.model,
+        approvalTimeoutMs: rawConfig.approvalTimeoutMs,
+      });
       void driver
         .start(async (m) => {
           const cmd = telegramCommand(m.text);
