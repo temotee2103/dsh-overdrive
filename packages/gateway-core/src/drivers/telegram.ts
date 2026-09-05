@@ -59,13 +59,15 @@ export interface TelegramNativeOptions {
   api?: TelegramApiLike;
   /** 测试注入 seam（轮询间隔）。 */
   sleep?: (ms: number) => Promise<void>;
+  /** Bot API base（默认官方；本地镜像/测试用）。 */
+  apiBase?: string;
 }
 
 const API_BASE = 'https://api.telegram.org';
 
-function realApi(token: string): TelegramApiLike {
+function realApi(token: string, apiBase = API_BASE): TelegramApiLike {
   async function call<T>(method: string, body: Record<string, unknown>): Promise<T> {
-    const res = await fetch(`${API_BASE}/bot${token}/${method}`, {
+    const res = await fetch(`${apiBase}/bot${token}/${method}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -99,6 +101,7 @@ export class TelegramNativeDriver implements NativeDriver {
   readonly platform = 'telegram';
 
   private readonly api: TelegramApiLike;
+  private readonly fileBase: string;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly allowed: ReadonlySet<number>;
   private readonly allowAll: boolean;
@@ -112,7 +115,8 @@ export class TelegramNativeDriver implements NativeDriver {
   private warnedDenied = false;
 
   constructor(private readonly opts: TelegramNativeOptions) {
-    this.api = opts.api ?? realApi(opts.token);
+    this.api = opts.api ?? realApi(opts.token, opts.apiBase);
+    this.fileBase = opts.apiBase ?? API_BASE;
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.allowed = new Set(opts.allowedUserIds ?? []);
     this.allowAll = opts.allowAllUsers ?? false;
@@ -169,7 +173,7 @@ export class TelegramNativeDriver implements NativeDriver {
       try {
         const file = await this.api.getFile(photos[photos.length - 1]!.file_id!);
         if (file.result?.file_path) {
-          media = { kind: 'image', url: `https://api.telegram.org/file/bot${this.opts.token}/${file.result.file_path}` };
+          media = { kind: 'image', url: `${this.fileBase}/file/bot${this.opts.token}/${file.result.file_path}` };
           if (text) media.caption = text;
         }
       } catch (error) {

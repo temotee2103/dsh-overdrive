@@ -5,6 +5,7 @@ import { DshBridge } from './bridge.js';
 import { createDshRuntime } from './dsh-runtime.js';
 import { toDshSessionId } from './keys.js';
 import { createNativeBridge } from './native.js';
+import { describeRemindDelay, parseRemindCommand } from './commands.js';
 import {
   TelegramNativeDriver,
   telegramCommand,
@@ -70,6 +71,7 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}): GatewayC
   const sessionPrefix = rawConfig.sessionPrefix ?? 'dsh';
   const stopFns: Array<() => void> = [];
   const native: string[] = [];
+  const reminderTimers = new Set<ReturnType<typeof setTimeout>>();
 
   // —— 进程内原生：Telegram（有 token 即启动；无效/失败仅告警）——
   const telegramToken = rawConfig.telegramToken ?? process.env.DSH_TELEGRAM_TOKEN;
@@ -89,6 +91,23 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}): GatewayC
       });
       void driver
         .start(async (m) => {
+          // /remind <N><s|m|h> <提示>：一次性定时提醒（本会话 channel）。
+          const remind = parseRemindCommand(m.text);
+          if (remind) {
+            const timer = setTimeout(() => {
+              reminderTimers.delete(timer);
+              void driver.send(
+                { channel: m.channel, user: m.user },
+                { kind: 'complete', text: `⏰ 提醒：${remind.prompt}` },
+              );
+            }, remind.delayMs);
+            reminderTimers.add(timer);
+            void driver.send(
+              { channel: m.channel, user: m.user },
+              { kind: 'complete', text: `已设置提醒（${describeRemindDelay(remind.delayMs)} 后）：${remind.prompt}` },
+            );
+            return;
+          }
           const cmd = telegramCommand(m.text);
           if (cmd === '/help') {
             void driver.send({ channel: m.channel, user: m.user }, { kind: 'complete', text: telegramHelpText });
@@ -110,6 +129,10 @@ export function apply(ctx: Context, rawConfig: GatewayCoreConfig = {}): GatewayC
           );
         });
       stopFns.push(() => driver.stop());
+      stopFns.push(() => {
+        for (const t of reminderTimers) clearTimeout(t);
+        reminderTimers.clear();
+      });
       native.push('telegram');
       console.log('[dsh-overdrive-gateway-core] telegram 原生桥接已启动（进程内，无外部 gateway）');
     } catch (error) {
