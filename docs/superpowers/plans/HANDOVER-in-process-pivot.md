@@ -1,12 +1,17 @@
 # dsh-overdrive 进程内化 — 交接手册（HANDOVER）
 
-> 更新：2026-09-05（Round 10）。本文件是当前状态与续接步骤的单一事实来源。
+> 更新：2026-09-05（Round 12 后，用户确认「不需要测试、代码没问题就行」）。
+> **最终状态：0.2.0 正式发布** —— npm `latest=0.2.0`（beta 标签保留 0.2.0-beta.0）；
+> 270 单测绿；dsh-index 收录分支 `update-latest-versions` 已同步 0.2.0（`5c6c38a`，
+> PR 待上游合并：https://github.com/Sunrisepeak/dsh-index/compare/main...temotee2103:update-latest-versions?expand=1）；
+> losebird/dsh-plugin-market PR #25 已被合并（overdrive/ci-co-pilot v0.3.1 条目在线）。
+> 剩余为可选项：P3 设置页客户端卡、P2 其余平台迁入、gateway 退役。
 > 主计划：`docs/superpowers/plans/2026-09-05-in-process-native.md`；发布稿：`docs/releases/gateway-core-0.2.0.md`。
 
 ## 一句话现状
 
-gateway-core **进程内原生形态已全部开发完成并通过 269 项单测**，`0.2.0-beta.0` 已发 npm tag `beta`；
-唯一缺口是**真机对话验证**（需要用户的 Telegram bot token 与装回其 web profile 的许可），验证后即可升正式 0.2.0 并收尾收录仓库。
+gateway-core **进程内原生形态已发布正式版 0.2.0**（npm `latest`），270 项单测绿；收录仓库已同步
+（losebird PR #25 已合并；dsh-index 分支 0.2.0 待上游合并）。用户验收口径：**无需真机测试，代码与单测通过即可**。
 
 ## 仓库/包状态
 
