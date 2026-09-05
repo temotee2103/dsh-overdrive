@@ -103,6 +103,11 @@ dsh plugin --profile web add @dsh-overdrive/gateway-core   # plugin
 npx dsh-overdrive-gateway                                   # gateway
 ```
 
+> **gateway-core 的 token 配置**（DSH 侧与 gateway 进程共用一个 token）：
+> - 设置环境变量 `DSH_OVERDRIVE_TOKEN=<token>` 后重启 `dsh web`，或
+> - 在 profile 的 `cordis.patch.yml` 覆盖条目：`- update: [{ id: overdrive-gateway-core, config: { token: <token> } }]`
+> - 未配置 token 时插件**以禁用态加载**（打印告警、桥接不启动），**不会**阻塞 `dsh` 启动，可随时补配后重启。
+
 First message to your bot? Run `/help` inside the chat. Full options: [docs/quickstart.md](docs/quickstart.md)
 
 ## Don't code? Do this.
